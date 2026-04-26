@@ -179,7 +179,16 @@
   .pds-cell {
     border-left: 1px solid var(--line-soft);
     padding: 2px 3px; font-size: 9px;
-    color: #444; overflow: hidden; cursor: pointer;
+    color: #444; cursor: pointer;
+    /* 한 줄로 잘리게 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* 행 높이 고정 */
+    min-height: 26px;
+    max-height: 26px;
+    display: flex;
+    align-items: center;
   }
   .pds-cell:first-child { border-left: 0; }
   .pds-cell:hover { outline: 1px solid var(--line); }
@@ -768,15 +777,18 @@ function renderDaily() {
       const manual = blocks.find(b => b.startMin <= slotMinStart && slotMinStart < b.endMin);
       const autoMatch = !manual && auto.find(a => a.startMin <= slotMinStart && slotMinStart < a.endMin);
 
-      let bg = 'transparent', text = '';
+      let bg = 'transparent', text = '', fullText = '';
       if (manual) {
         bg = CONFIG.CATEGORIES[manual.category] || '#EEE';
         if (manual.startMin === slotMinStart) text = manual.category;
+        fullText = manual.category;
       } else if (autoMatch) {
         bg = CONFIG.CATEGORIES[autoMatch.category] || '#C8DBC8';
         if (autoMatch.startMin === slotMinStart) text = autoMatch.label || autoMatch.category;
+        fullText = `${autoMatch.label || ''} (${autoMatch.category})`;
       }
-      html += `<div class="pds-cell" data-min="${slotMinStart}" style="background: ${bg};">${text}</div>`;
+      const titleAttr = fullText ? ` title="${escapeAttr(fullText)}"` : '';
+      html += `<div class="pds-cell" data-min="${slotMinStart}" style="background: ${bg};"${titleAttr}>${text}</div>`;
     }
     html += `</div></div>`;
   }
@@ -854,9 +866,11 @@ function bindPaintInteraction() {
 
     // 폰: 0.3초 롱프레스 후 색칠 시작 (그 전엔 스크롤 가능)
     cell.addEventListener('touchstart', (e) => {
-      // 즉시 막지 않고 - 짧은 탭이면 스크롤 허용
+      // 짧은 탭이면 텍스트 표시 (셀에 내용 있을 때만)
+      const tappedCell = cell;
+      const fullText = tappedCell.getAttribute('title');
+      
       state.longPressTriggered = false;
-      const targetCell = cell;
       state.longPressTimer = setTimeout(() => {
         // 0.3초 지나도 손 안 뗐으면 색칠 모드 시작
         state.longPressTriggered = true;
@@ -866,8 +880,12 @@ function bindPaintInteraction() {
         pushHistory();
         // 햅틱 피드백 (지원하는 폰에서)
         if (navigator.vibrate) navigator.vibrate(30);
-        paintCell(targetCell);
+        paintCell(tappedCell);
       }, 300);
+      
+      // 짧은 탭으로 텍스트 표시 (touchend 시점에 처리)
+      tappedCell._tapStartTime = Date.now();
+      tappedCell._tapFullText = fullText;
     });
 
     // 손 움직이면 롱프레스 취소 (스크롤 시도로 간주)
@@ -883,6 +901,13 @@ function bindPaintInteraction() {
       if (state.longPressTimer) {
         clearTimeout(state.longPressTimer);
         state.longPressTimer = null;
+      }
+      // 짧은 탭이고 (롱프레스 안 발동) 셀에 텍스트 있으면 status에 표시
+      if (!state.longPressTriggered && cell._tapFullText && cell._tapStartTime) {
+        const tapDuration = Date.now() - cell._tapStartTime;
+        if (tapDuration < 300) {
+          showCellInfo(cell._tapFullText);
+        }
       }
     });
 
@@ -1386,6 +1411,18 @@ function undoLastAction() {
   render();
   // 햅틱
   if (navigator.vibrate) navigator.vibrate(20);
+}
+
+// 셀 짧은 탭 시 풀텍스트 표시 (폰)
+let cellInfoTimer = null;
+function showCellInfo(text) {
+  const statusEl = document.getElementById('status');
+  if (cellInfoTimer) clearTimeout(cellInfoTimer);
+  statusEl.textContent = '📍 ' + text;
+  statusEl.classList.remove('error');
+  cellInfoTimer = setTimeout(() => {
+    statusEl.textContent = '';
+  }, 3000);
 }
 
 // =====================================================
