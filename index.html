@@ -216,6 +216,16 @@
   }
   .w-header div:hover { background: #ECECEC; }
   .w-header div.weekend-sun { color: var(--red); }
+  .w-header div.today-mark {
+    background: var(--text);
+    color: var(--bg);
+    font-weight: 500;
+    border-radius: 2px;
+  }
+  .w-header div.today-mark.today-mark-red {
+    color: var(--red);  /* 검은 배경 위에 빨간 글씨 */
+  }
+  .w-header div.today-mark:hover { background: var(--text); }
   .w-row {
     display: grid; grid-template-columns: 36px repeat(7, 1fr);
     border-bottom: 1px solid var(--line-soft);
@@ -246,6 +256,7 @@
   .mini-cal td.weekend-sun { color: var(--red); }
   .mini-cal td.today { background: var(--text); color: var(--bg); border-radius: 2px; font-weight: 500; }
   .mini-cal td.today:hover { background: var(--text); }
+  .mini-cal td.today.today-red { color: var(--red); }
   .mini-cal td.muted { color: var(--text-subtle); }
   .mini-cal td.empty { cursor: default; }
   .mini-cal td.empty:hover { background: transparent; }
@@ -1271,7 +1282,20 @@ function renderWeekly() {
     const dt = new Date(weekStart);
     dt.setDate(weekStart.getDate() + i);
     const isSun = dt.getDay() === 0;
-    headerHtml += `<div class="${isSun ? 'weekend-sun' : ''}" data-date="${fmtDate(dt)}">${dayName(dt)} ${dt.getDate()}</div>`;
+    const holiday = isHoliday(dt);
+    const today = isToday(dt);
+    const isRedDay = isSun || holiday;
+    
+    let cls = '';
+    if (today) {
+      cls = 'today-mark';
+      if (isRedDay) cls += ' today-mark-red';  // 검은배경 + 빨간글씨
+    } else if (isRedDay) {
+      cls = 'weekend-sun';
+    }
+    
+    const titleAttr = holiday ? ` title="${escapeAttr(holiday)}"` : '';
+    headerHtml += `<div class="${cls}" data-date="${fmtDate(dt)}"${titleAttr}>${dayName(dt)} ${dt.getDate()}</div>`;
   }
   document.getElementById('w-header').innerHTML = headerHtml;
 
@@ -1350,13 +1374,23 @@ function renderMiniCal() {
   for (let i = 0; i < offset; i++) { row += '<td class="empty"></td>'; cell++; }
   for (let dt = 1; dt <= lastDay.getDate(); dt++) {
     const dow = (offset + dt - 1) % 7;
-    const isToday = (dt === today.getDate() && month === today.getMonth() && year === today.getFullYear());
+    const cellDate = new Date(year, month, dt);
+    const isTodayCell = (dt === today.getDate() && month === today.getMonth() && year === today.getFullYear());
     const isSelected = (dt === d.getDate());
+    const holiday = isHoliday(cellDate);
+    const isRedDay = (dow === 6) || holiday;
+    
     let cls = '';
-    if (dow === 6) cls = 'weekend-sun';
-    if (isToday) cls = 'today';
+    if (isTodayCell) {
+      cls = 'today';
+      if (isRedDay) cls += ' today-red';
+    } else if (isRedDay) {
+      cls = 'weekend-sun';
+    }
+    
     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(dt).padStart(2,'0')}`;
-    row += `<td class="${cls}" data-date="${dateStr}" style="${isSelected && !isToday ? 'border: 1px solid var(--text);' : ''}">${dt}</td>`;
+    const titleAttr = holiday ? ` title="${escapeAttr(holiday)}"` : '';
+    row += `<td class="${cls}" data-date="${dateStr}"${titleAttr} style="${isSelected && !isTodayCell ? 'border: 1px solid var(--text);' : ''}">${dt}</td>`;
     cell++;
     if (cell % 7 === 0) { row += '</tr>'; html += row; row = '<tr>'; }
   }
@@ -1426,10 +1460,13 @@ function renderMonthly() {
 
     const fmt = (m) => `${Math.floor(m/60)}h ${m%60}m`;
 
-    const dateClass = dow === 6 ? 'weekend-sun' : '';
+    const holiday = isHoliday(dDate);
+    let dateClass = dow === 6 ? 'weekend-sun' : '';
+    if (holiday) dateClass = 'weekend-sun';
     const todayClass = isToday ? ' today' : '';
+    const holidayTip = holiday ? ` title="${escapeAttr(holiday)}"` : '';
     
-    let dayHtml = `<div class="m-day${todayClass}" data-date="${dateStr}">`;
+    let dayHtml = `<div class="m-day${todayClass}" data-date="${dateStr}"${holidayTip}>`;
     dayHtml += `<div class="m-date ${dateClass}">${dt}</div>`;
     if (!isFuture && (stats.workMin > 0 || stats.taxMin > 0 || stats.sleepMin > 0)) {
       dayHtml += `<div class="m-bars">`;
@@ -1557,6 +1594,57 @@ function escapeHtml(s) {
 }
 function escapeAttr(s) {
   return String(s).replace(/"/g, '&quot;');
+}
+
+// =====================================================
+// 한국 공휴일 (양력 기준 + 음력 환산된 주요 날짜)
+// =====================================================
+const KR_HOLIDAYS = {
+  // 2025
+  '2025-01-01': '신정',
+  '2025-01-28': '설날 연휴',
+  '2025-01-29': '설날',
+  '2025-01-30': '설날 연휴',
+  '2025-03-01': '삼일절',
+  '2025-05-05': '어린이날/석가탄신일',
+  '2025-06-06': '현충일',
+  '2025-08-15': '광복절',
+  '2025-10-03': '개천절',
+  '2025-10-05': '추석 연휴',
+  '2025-10-06': '추석',
+  '2025-10-07': '추석 연휴',
+  '2025-10-08': '대체공휴일',
+  '2025-10-09': '한글날',
+  '2025-12-25': '크리스마스',
+  // 2026
+  '2026-01-01': '신정',
+  '2026-02-16': '설날 연휴',
+  '2026-02-17': '설날',
+  '2026-02-18': '설날 연휴',
+  '2026-03-01': '삼일절',
+  '2026-03-02': '대체공휴일',
+  '2026-05-05': '어린이날',
+  '2026-05-24': '석가탄신일',
+  '2026-05-25': '대체공휴일',
+  '2026-06-06': '현충일',
+  '2026-08-15': '광복절',
+  '2026-08-17': '대체공휴일',
+  '2026-09-24': '추석 연휴',
+  '2026-09-25': '추석',
+  '2026-09-26': '추석 연휴',
+  '2026-10-03': '개천절',
+  '2026-10-09': '한글날',
+  '2026-12-25': '크리스마스',
+};
+
+function isHoliday(date) {
+  return KR_HOLIDAYS[fmtDate(date)] || null;
+}
+function isToday(date) {
+  const t = new Date();
+  return date.getFullYear() === t.getFullYear() &&
+         date.getMonth() === t.getMonth() &&
+         date.getDate() === t.getDate();
 }
 
 // =====================================================
