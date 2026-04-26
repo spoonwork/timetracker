@@ -918,7 +918,7 @@ function renderDaily() {
           if (totalDur >= 60 && endsInThisSlot) {
             const h = Math.floor(totalDur / 60);
             const m = totalDur % 60;
-            const durStr = m > 0 ? `${h}h ${m}m` : `${h}h`;
+            const durStr = `${h}:${String(m).padStart(2, '0')}`;
             firstLabel = durStr;
           }
         }
