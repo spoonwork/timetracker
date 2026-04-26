@@ -637,6 +637,52 @@ const CONFIG = {
     ['hanalife', '세무'],
     ['hyundaicapital', '세무'],
   ],
+  // 라벨 변환 (그리드에 표시되는 짧은 이름)
+  // [정규식 또는 문자열 매칭, 표시할 이름]
+  // 위에서부터 순서대로 매칭 - 가장 구체적인 게 먼저
+  LABEL_MAP: [
+    ['CLIPStudioPaint', 'CSP'],
+    ['SketchUp', 'SU'],
+    ['blender', 'BLD'],
+    ['PureRef', 'PR'],
+    ['Photoshop', 'PS'],
+    ['Illustrator', 'AI일러'],
+    ['Honeyview', '뷰어'],
+    ['HncApp', 'HWP'],
+    ['EXCEL', 'XLS'],
+    ['WINWORD', 'Word'],
+    ['Evernote', 'EN'],
+    ['Cursor', 'Cursor'],
+    ['Antigravity', 'AGv'],
+    ['Code', 'VSC'],
+    ['Claude', 'Cld'],
+    ['claude', 'Cld'],
+    ['chatgpt', 'GPT'],
+    ['gemini', 'Gem'],
+    ['Google Docs', 'GDocs'],
+    ['Google Drive', 'GDrv'],
+    ['Google Sheets', 'GSht'],
+    ['KakaoTalk', '카톡'],
+    ['ScreenClippingHost', '캡처'],
+    ['ShellExperienceHost', '쉘'],
+    ['explorer', '탐색기'],
+    ['SearchApp', '검색'],
+    // 마스킹 (정확한 이름 노출 X)
+    ['YULDO', '커뮤'],
+    ['yul-do', '커뮤'],
+    ['dmitory', '커뮤'],
+    ['dcinside', '커뮤'],
+    ['gall.dcinside', '커뮤'],
+    ['naver', '네이버'],
+    ['NAVER', '네이버'],
+    ['youtube', '유튜브'],
+    ['YouTube', '유튜브'],
+    ['twitter', '트위터'],
+    ['Twitter', '트위터'],
+    ['x.com', 'X'],
+    ['instagram', '인스타'],
+    ['Instagram', '인스타'],
+  ],
   DAY_START_HOUR: 6,
   DAY_END_HOUR: 29,
   SLOTS_PER_HOUR: 6,
@@ -2028,6 +2074,29 @@ async function saveAllAppData() {
 }
 
 /**
+ * 라벨 줄임/마스킹 함수
+ * app 또는 title에서 LABEL_MAP과 매칭되는 게 있으면 짧은 이름으로 변환
+ * 매칭 안되면 app 이름을 그대로 사용 (단, 길면 자르기)
+ */
+function shortenLabel(app, title) {
+  const combined = (app + ' ' + (title || '')).toLowerCase();
+  for (const [keyword, shortName] of CONFIG.LABEL_MAP) {
+    if (combined.includes(keyword.toLowerCase())) {
+      return shortName;
+    }
+  }
+  // 매칭 실패 시 app 이름 그대로 (chrome 같은 경우)
+  // chrome이면 title 일부만 보여주는 게 더 정보적
+  if (app.toLowerCase() === 'chrome' && title) {
+    // title에서 첫 단어/구절만 (' - ' 또는 ' / ' 앞부분)
+    const cleaned = title.split(/\s*[\-\/]\s*/)[0].trim();
+    return cleaned.length > 8 ? cleaned.substring(0, 8) : cleaned;
+  }
+  // 일반 앱은 8자로 제한
+  return app.length > 8 ? app.substring(0, 8) : app;
+}
+
+/**
  * logs 행 데이터를 autoLogs 형식으로 변환
  */
 function processLogsRows(rows) {
@@ -2060,6 +2129,9 @@ function processLogsRows(rows) {
     }
     // 'work' → '작업'으로 치환
     if (displayCat === 'work') displayCat = '작업';
+
+    // 라벨 줄임/마스킹: app 또는 title에서 매칭
+    label = shortenLabel(app, title);
 
     if (!byDate[startParts.date]) byDate[startParts.date] = [];
     byDate[startParts.date].push({
