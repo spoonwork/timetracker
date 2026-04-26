@@ -175,7 +175,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .pds-do { display: grid; grid-template-columns: repeat(6, 1fr); touch-action: none; }
+  .pds-do { display: grid; grid-template-columns: repeat(6, 1fr); }
   .pds-cell {
     border-left: 1px solid var(--line-soft);
     padding: 2px 3px; font-size: 9px;
@@ -364,6 +364,7 @@
       <button id="btn-prev" class="icon">◀</button>
       <button id="btn-today">오늘</button>
       <button id="btn-next" class="icon">▶</button>
+      <button id="btn-undo" class="icon" title="되돌리기">⏪</button>
       <button id="btn-sync" class="icon" title="동기화">🔄</button>
     </div>
   </header>
@@ -572,6 +573,9 @@ const state = {
   selectedCategory: '작업',
   isPainting: false,
   paintMode: 'add',
+  longPressTimer: null,
+  longPressTriggered: false,
+  history: [],  // 되돌리기용 스냅샷 (최근 30개)
   manualBlocks: {},
   todos: {},
   hourPlans: {},
@@ -637,6 +641,7 @@ function bindUI() {
   document.getElementById('btn-prev').onclick = () => moveDate(-1);
   document.getElementById('btn-next').onclick = () => moveDate(1);
   document.getElementById('btn-today').onclick = () => { state.date = new Date(); render(); };
+  document.getElementById('btn-undo').onclick = () => undoLastAction();
   document.getElementById('btn-sync').onclick = () => syncFromSheets(true);
 
   // 헤더 클릭 → 먼슬리로
@@ -660,6 +665,7 @@ function bindUI() {
     if (e.key === 'Enter') {
       const text = e.target.value.trim();
       if (text) {
+        pushHistory();
         const ds = fmtDate(state.date);
         if (!state.todos[ds]) state.todos[ds] = [];
         state.todos[ds].push({ text, done: false });
@@ -786,7 +792,12 @@ function renderDaily() {
 }
 
 function bindPlanInputs() {
+  let planInputDebounce = null;
   document.querySelectorAll('.pds-plan input').forEach(inp => {
+    let oldValue = inp.value;
+    inp.addEventListener('focus', () => {
+      oldValue = inp.value;
+    });
     inp.addEventListener('input', (e) => {
       const ds = fmtDate(state.date);
       const h = parseInt(e.target.dataset.hour);
@@ -794,6 +805,13 @@ function bindPlanInputs() {
       const val = e.target.value;
       if (val.trim() === '') delete state.hourPlans[ds][h];
       else state.hourPlans[ds][h] = val;
+      // 히스토리는 입력 시작 시 한 번만 (디바운스)
+      if (planInputDebounce) clearTimeout(planInputDebounce);
+      if (oldValue !== val && oldValue !== '__pushed__') {
+        pushHistory();
+        oldValue = '__pushed__';
+      }
+      planInputDebounce = setTimeout(() => { oldValue = val; }, 1000);
       saveToLocal();
     });
   });
@@ -802,6 +820,7 @@ function bindPlanInputs() {
 function bindMarkers() {
   document.querySelectorAll('.pds-marker').forEach(el => {
     el.onclick = () => {
+      pushHistory();
       const ds = fmtDate(state.date);
       const h = parseInt(el.dataset.hour);
       if (!state.hourMarkers[ds]) state.hourMarkers[ds] = {};
@@ -823,26 +842,59 @@ function bindMarkers() {
 function bindPaintInteraction() {
   const cells = document.querySelectorAll('.pds-cell');
   cells.forEach(cell => {
+    // PC: 마우스는 즉시 색칠 (기존대로)
     cell.addEventListener('mousedown', (e) => {
       e.preventDefault();
+      // 색칠 시작 전 스냅샷 저장
+      pushHistory();
       state.isPainting = true;
       state.paintMode = (e.button === 2 || state.selectedCategory === '') ? 'erase' : 'add';
       paintCell(cell);
     });
+
+    // 폰: 0.3초 롱프레스 후 색칠 시작 (그 전엔 스크롤 가능)
     cell.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      state.isPainting = true;
-      state.paintMode = state.selectedCategory === '' ? 'erase' : 'add';
-      paintCell(cell);
+      // 즉시 막지 않고 - 짧은 탭이면 스크롤 허용
+      state.longPressTriggered = false;
+      const targetCell = cell;
+      state.longPressTimer = setTimeout(() => {
+        // 0.3초 지나도 손 안 뗐으면 색칠 모드 시작
+        state.longPressTriggered = true;
+        state.isPainting = true;
+        state.paintMode = state.selectedCategory === '' ? 'erase' : 'add';
+        // 스냅샷 저장
+        pushHistory();
+        // 햅틱 피드백 (지원하는 폰에서)
+        if (navigator.vibrate) navigator.vibrate(30);
+        paintCell(targetCell);
+      }, 300);
     });
+
+    // 손 움직이면 롱프레스 취소 (스크롤 시도로 간주)
+    cell.addEventListener('touchmove', (e) => {
+      if (state.longPressTimer && !state.longPressTriggered) {
+        clearTimeout(state.longPressTimer);
+        state.longPressTimer = null;
+      }
+    });
+
+    // 손 떼면 롱프레스 타이머 정리
+    cell.addEventListener('touchend', (e) => {
+      if (state.longPressTimer) {
+        clearTimeout(state.longPressTimer);
+        state.longPressTimer = null;
+      }
+    });
+
     cell.addEventListener('mouseenter', () => {
       if (state.isPainting) paintCell(cell);
     });
     cell.addEventListener('contextmenu', (e) => e.preventDefault());
   });
 
+  // 색칠 중일 때만 touchmove로 다른 칸 색칠
   document.getElementById('pds-grid').addEventListener('touchmove', (e) => {
-    if (!state.isPainting) return;
+    if (!state.isPainting || !state.longPressTriggered) return;
     e.preventDefault();
     const t = e.touches[0];
     const target = document.elementFromPoint(t.clientX, t.clientY);
@@ -859,6 +911,7 @@ function bindPaintInteraction() {
   document.addEventListener('touchend', () => {
     if (state.isPainting) {
       state.isPainting = false;
+      state.longPressTriggered = false;
       mergeAdjacent();
       renderDaily();
     }
@@ -1296,6 +1349,43 @@ function escapeHtml(s) {
 }
 function escapeAttr(s) {
   return String(s).replace(/"/g, '&quot;');
+}
+
+// =====================================================
+// 되돌리기 (Undo)
+// =====================================================
+
+function pushHistory() {
+  // 현재 상태 스냅샷을 history에 추가
+  const snapshot = {
+    manualBlocks: JSON.parse(JSON.stringify(state.manualBlocks)),
+    hourPlans: JSON.parse(JSON.stringify(state.hourPlans)),
+    hourMarkers: JSON.parse(JSON.stringify(state.hourMarkers)),
+    todos: JSON.parse(JSON.stringify(state.todos)),
+    see: JSON.parse(JSON.stringify(state.see)),
+  };
+  state.history.push(snapshot);
+  // 최대 30개 유지 (메모리 절약)
+  if (state.history.length > 30) state.history.shift();
+}
+
+function undoLastAction() {
+  if (state.history.length === 0) {
+    const statusEl = document.getElementById('status');
+    statusEl.textContent = '되돌릴 작업이 없어';
+    setTimeout(() => { statusEl.textContent = ''; }, 2000);
+    return;
+  }
+  const snapshot = state.history.pop();
+  state.manualBlocks = snapshot.manualBlocks;
+  state.hourPlans = snapshot.hourPlans;
+  state.hourMarkers = snapshot.hourMarkers;
+  state.todos = snapshot.todos;
+  state.see = snapshot.see;
+  saveToLocal();
+  render();
+  // 햅틱
+  if (navigator.vibrate) navigator.vibrate(20);
 }
 
 // =====================================================
