@@ -189,6 +189,8 @@
     max-height: 26px;
     display: flex;
     align-items: center;
+    /* 텍스트 가독성: 약한 흰색 그림자 */
+    text-shadow: 0 0 2px rgba(255,255,255,0.7);
   }
   .pds-cell:first-child { border-left: 0; }
   .pds-cell:hover { outline: 1px solid var(--line); }
@@ -782,21 +784,108 @@ function renderDaily() {
     html += `<div class="pds-do">`;
     for (let s = 0; s < CONFIG.SLOTS_PER_HOUR; s++) {
       const slotMinStart = (h - CONFIG.DAY_START_HOUR) * 60 + s * 10;
-      const manual = blocks.find(b => b.startMin <= slotMinStart && slotMinStart < b.endMin);
-      const autoMatch = !manual && auto.find(a => a.startMin <= slotMinStart && slotMinStart < a.endMin);
+      const slotMinEnd = slotMinStart + 10;
 
-      let bg = 'transparent', text = '', fullText = '';
-      if (manual) {
-        bg = CONFIG.CATEGORIES[manual.category] || '#EEE';
-        if (manual.startMin === slotMinStart) text = manual.category;
-        fullText = manual.category;
-      } else if (autoMatch) {
-        bg = CONFIG.CATEGORIES[autoMatch.category] || '#C8DBC8';
-        if (autoMatch.startMin === slotMinStart) text = autoMatch.label || autoMatch.category;
-        fullText = `${autoMatch.label || ''} (${autoMatch.category})`;
+      // 이 10분 칸에 겹치는 모든 활동 찾기
+      const segments = [];  // {start, end, category, label}
+      
+      // 수동 블록 (우선)
+      blocks.forEach(b => {
+        const overlapStart = Math.max(b.startMin, slotMinStart);
+        const overlapEnd = Math.min(b.endMin, slotMinEnd);
+        if (overlapEnd > overlapStart) {
+          segments.push({
+            start: overlapStart, end: overlapEnd,
+            category: b.category, label: b.category, manual: true
+          });
+        }
+      });
+      
+      // 자동 로그 (수동에 안 가린 부분만)
+      auto.forEach(a => {
+        const overlapStart = Math.max(a.startMin, slotMinStart);
+        const overlapEnd = Math.min(a.endMin, slotMinEnd);
+        if (overlapEnd > overlapStart) {
+          // 수동과 안 겹치는 부분만 추가
+          let curStart = overlapStart;
+          const manualParts = segments.filter(s => s.manual)
+            .map(s => ({ start: Math.max(s.start, overlapStart), end: Math.min(s.end, overlapEnd) }))
+            .filter(s => s.end > s.start)
+            .sort((x, y) => x.start - y.start);
+          
+          for (const mp of manualParts) {
+            if (curStart < mp.start) {
+              segments.push({
+                start: curStart, end: mp.start,
+                category: a.category, label: a.label, manual: false
+              });
+            }
+            curStart = Math.max(curStart, mp.end);
+          }
+          if (curStart < overlapEnd) {
+            segments.push({
+              start: curStart, end: overlapEnd,
+              category: a.category, label: a.label, manual: false
+            });
+          }
+        }
+      });
+
+      segments.sort((x, y) => x.start - y.start);
+
+      let cellHtml = '';
+      let titleParts = [];
+      let mainCategory = '';
+      let firstLabel = '';
+
+      if (segments.length === 0) {
+        cellHtml = `<div class="pds-cell" data-min="${slotMinStart}" style="background: transparent;"></div>`;
+      } else {
+        // 비율 기반 가로 그라데이션
+        const totalDur = segments.reduce((sum, s) => sum + (s.end - s.start), 0);
+        let cumPct = 0;
+        const stops = [];
+        segments.forEach(seg => {
+          const dur = seg.end - seg.start;
+          const pct = (dur / 10) * 100;  // 10분 칸 기준
+          const color = CONFIG.CATEGORIES[seg.category] || '#C8DBC8';
+          const startPct = (seg.start - slotMinStart) / 10 * 100;
+          const endPct = (seg.end - slotMinStart) / 10 * 100;
+          stops.push(`${color} ${startPct}%`);
+          stops.push(`${color} ${endPct}%`);
+          
+          const minutes = Math.round(dur);
+          const seconds = Math.round((dur - minutes) * 60);
+          const durStr = minutes > 0 ? `${minutes}분` : `${Math.round(dur * 60)}초`;
+          titleParts.push(`${seg.label || seg.category} (${durStr})`);
+        });
+        
+        // 시작 부분에 빈 공간 있으면 transparent
+        const firstStart = (segments[0].start - slotMinStart) / 10 * 100;
+        if (firstStart > 0) {
+          stops.unshift(`transparent ${firstStart}%`);
+          stops.unshift(`transparent 0%`);
+        }
+        // 끝 부분 빈 공간
+        const lastEnd = (segments[segments.length-1].end - slotMinStart) / 10 * 100;
+        if (lastEnd < 100) {
+          stops.push(`transparent ${lastEnd}%`);
+          stops.push(`transparent 100%`);
+        }
+        
+        const bgGradient = `linear-gradient(to right, ${stops.join(', ')})`;
+        
+        // 첫 활동의 라벨을 셀에 표시 (시작 셀일 때만)
+        const firstSeg = segments[0];
+        if (firstSeg.start === slotMinStart) {
+          firstLabel = firstSeg.label || firstSeg.category;
+        }
+        
+        const titleAttr = ` title="${escapeAttr(titleParts.join(' / '))}"`;
+        cellHtml = `<div class="pds-cell" data-min="${slotMinStart}" style="background: ${bgGradient};"${titleAttr}>${firstLabel}</div>`;
       }
-      const titleAttr = fullText ? ` title="${escapeAttr(fullText)}"` : '';
-      html += `<div class="pds-cell" data-min="${slotMinStart}" style="background: ${bg};"${titleAttr}>${text}</div>`;
+      
+      html += cellHtml;
     }
     html += `</div></div>`;
   }
@@ -1574,6 +1663,32 @@ function processLogsRows(rows) {
   // 인접 같은 카테고리 머지
   Object.keys(byDate).forEach(d => {
     byDate[d].sort((a, b) => a.startMin - b.startMin);
+    
+    // STEP 1: 아주 짧은 활동(15초 미만)만 흡수
+    // 탭 변경처럼 의미있는 활동은 보존
+    // 진짜 잠깐 끼어든 cmd, ScreenClipping 같은 것만 제거
+    const SHORT_THRESHOLD_SEC = 15;
+    let absorbed = [];
+    for (let i = 0; i < byDate[d].length; i++) {
+      const cur = byDate[d][i];
+      const durSec = (cur.endMin - cur.startMin) * 60;  // 분 단위 → 초
+      // 짧은 활동인지 + 앞뒤 카테고리가 같은지
+      if (durSec < SHORT_THRESHOLD_SEC && i > 0 && i < byDate[d].length - 1) {
+        const prev = byDate[d][i - 1];
+        const next = byDate[d][i + 1];
+        if (prev.category === next.category) {
+          // 가운데 짧은 거를 prev에 흡수 (next는 다음 루프에서 처리됨)
+          // → prev의 endMin을 cur의 endMin으로 확장
+          // (실제 머지는 다음 단계에서)
+          absorbed.push({ ...cur, category: prev.category, label: prev.label, _absorbed: true });
+          continue;
+        }
+      }
+      absorbed.push(cur);
+    }
+    byDate[d] = absorbed;
+    
+    // STEP 2: 인접 같은 카테고리 + 같은 라벨 머지
     const merged = [];
     for (const seg of byDate[d]) {
       const last = merged[merged.length - 1];
@@ -1585,6 +1700,30 @@ function processLogsRows(rows) {
       }
     }
     byDate[d] = merged;
+    
+    // STEP 3: 그래도 짧은 활동이 외톨이로 남아있으면 (앞뒤 카테고리 다름)
+    //         10분 칸을 차지하지 못하는 활동 (60초 미만)을 양 옆 더 긴 활동에 흡수
+    const final = [];
+    for (let i = 0; i < byDate[d].length; i++) {
+      const cur = byDate[d][i];
+      const durSec = (cur.endMin - cur.startMin) * 60;
+      if (durSec < SHORT_THRESHOLD_SEC && i > 0) {
+        const prev = final[final.length - 1];
+        const next = byDate[d][i + 1];
+        // 앞뒤 중 더 긴 쪽으로 흡수
+        const prevDur = prev ? (prev.endMin - prev.startMin) : 0;
+        const nextDur = next ? (next.endMin - next.startMin) : 0;
+        if (prevDur >= nextDur && prev) {
+          prev.endMin = cur.endMin;  // prev가 cur 시간만큼 확장
+          continue;
+        } else if (next) {
+          next.startMin = cur.startMin;  // next의 시작을 cur 시작으로
+          continue;
+        }
+      }
+      final.push(cur);
+    }
+    byDate[d] = final;
   });
   return byDate;
 }
