@@ -1774,9 +1774,11 @@ function isToday(date) {
 
 // 일진 계산: 기준일 1900-02-20 = 갑자일 (한국 만세력 표준)
 function getDayGanji(date) {
-  const baseDate = new Date(1900, 1, 20);  // 1900-02-20 갑자일
+  // 시각 영향 제거 위해 정오(12시) 기준으로 비교
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
+  const baseDate = new Date(1900, 1, 20, 12, 0, 0);
   const msPerDay = 24 * 60 * 60 * 1000;
-  const dayDiff = Math.floor((date.getTime() - baseDate.getTime()) / msPerDay);
+  const dayDiff = Math.round((target.getTime() - baseDate.getTime()) / msPerDay);
   const idx = ((dayDiff % 60) + 60) % 60;
   return {
     gan: CHEONGAN[idx % 10],
@@ -1877,8 +1879,10 @@ function getSajuText(date) {
 
 function getLunarDate(date) {
   let i, leap = 0, temp = 0;
-  const baseDate = new Date(1900, 0, 31);
-  let offset = Math.floor((date.getTime() - baseDate.getTime()) / 86400000);
+  // 시각 영향 제거 위해 정오 기준
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
+  const baseDate = new Date(1900, 0, 31, 12, 0, 0);
+  let offset = Math.round((target.getTime() - baseDate.getTime()) / 86400000);
   
   let lunarYear = 1900;
   for (i = 1900; i < 2050 && offset > 0; i++) {
