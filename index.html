@@ -893,21 +893,34 @@ function renderDaily() {
         const firstSeg = segments[0];
         // firstSeg에 대응하는 원본 활동 찾기
         let originalStart = null;
+        let originalEnd = null;
         if (firstSeg.manual) {
           const orig = blocks.find(b => b.category === firstSeg.category && 
                                          b.startMin <= firstSeg.start && 
                                          firstSeg.end <= b.endMin);
-          if (orig) originalStart = orig.startMin;
+          if (orig) { originalStart = orig.startMin; originalEnd = orig.endMin; }
         } else {
           const orig = auto.find(a => a.label === firstSeg.label && 
                                        a.category === firstSeg.category &&
                                        a.startMin <= firstSeg.start && 
                                        firstSeg.end <= a.endMin);
-          if (orig) originalStart = orig.startMin;
+          if (orig) { originalStart = orig.startMin; originalEnd = orig.endMin; }
         }
         // 활동의 원본 시작이 이 칸 안에 있을 때만 라벨 표시
         if (originalStart !== null && originalStart >= slotMinStart && originalStart < slotMinEnd) {
           firstLabel = firstSeg.label || firstSeg.category;
+        }
+        // 1시간 이상 이어진 활동이면, 마지막 칸에 경과 시간 표시
+        if (originalEnd !== null && originalStart !== null && !firstLabel) {
+          const totalDur = originalEnd - originalStart;
+          // 활동 끝나는 칸 = 활동 endMin이 이 슬롯 안 또는 직전에 끝남
+          const endsInThisSlot = originalEnd > slotMinStart && originalEnd <= slotMinEnd;
+          if (totalDur >= 60 && endsInThisSlot) {
+            const h = Math.floor(totalDur / 60);
+            const m = totalDur % 60;
+            const durStr = m > 0 ? `${h}h ${m}m` : `${h}h`;
+            firstLabel = durStr;
+          }
         }
         
         const titleAttr = ` title="${escapeAttr(titleParts.join(' / '))}"`;
