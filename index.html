@@ -407,7 +407,7 @@
           <div>PLAN</div><div></div><div class="h-time">시간</div><div>DO</div>
         </div>
         <div id="pds-grid"></div>
-        <div class="hint">PLAN: 텍스트 / 우측 작은 칸: 마커 / DO: 드래그로 색칠</div>
+        <div class="hint">카테고리 선택 → 색칠 모드 / 다시 클릭 → 해제 (정보 보기 모드)</div>
       </div>
 
       <div class="sidebar">
@@ -579,7 +579,7 @@ const CONFIG = {
 const state = {
   view: 'daily',
   date: new Date(),
-  selectedCategory: '작업',
+  selectedCategory: null,
   isPainting: false,
   paintMode: 'add',
   longPressTimer: null,
@@ -663,12 +663,20 @@ function bindUI() {
 
   document.querySelectorAll('#palette .swatch').forEach(el => {
     el.onclick = () => {
-      document.querySelectorAll('#palette .swatch').forEach(s => s.classList.remove('active'));
-      el.classList.add('active');
-      state.selectedCategory = el.dataset.cat;
+      const cat = el.dataset.cat;
+      // 이미 선택된 카테고리를 또 누르면 선택 해제 (지우개 제외)
+      if (state.selectedCategory === cat && cat !== '') {
+        document.querySelectorAll('#palette .swatch').forEach(s => s.classList.remove('active'));
+        state.selectedCategory = null;  // 선택 해제 상태
+      } else {
+        document.querySelectorAll('#palette .swatch').forEach(s => s.classList.remove('active'));
+        el.classList.add('active');
+        state.selectedCategory = cat;
+      }
     };
   });
-  document.querySelector('#palette .swatch[data-cat="작업"]').classList.add('active');
+  // 시작은 선택 해제 상태 (정보 보기 모드)
+  state.selectedCategory = null;
 
   document.getElementById('add-todo').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
@@ -832,6 +840,8 @@ function bindPlanInputs() {
 function bindMarkers() {
   document.querySelectorAll('.pds-marker').forEach(el => {
     el.onclick = () => {
+      // 카테고리 선택 안되면 동작 X
+      if (state.selectedCategory === null) return;
       pushHistory();
       const ds = fmtDate(state.date);
       const h = parseInt(el.dataset.hour);
@@ -854,38 +864,49 @@ function bindMarkers() {
 function bindPaintInteraction() {
   const cells = document.querySelectorAll('.pds-cell');
   cells.forEach(cell => {
-    // PC: 마우스는 즉시 색칠 (기존대로)
+    // PC: 마우스는 즉시 색칠 (카테고리 선택돼있을 때만)
     cell.addEventListener('mousedown', (e) => {
+      // 선택된 카테고리 없으면 색칠 안 함
+      if (state.selectedCategory === null) return;
       e.preventDefault();
-      // 색칠 시작 전 스냅샷 저장
       pushHistory();
       state.isPainting = true;
       state.paintMode = (e.button === 2 || state.selectedCategory === '') ? 'erase' : 'add';
       paintCell(cell);
     });
 
-    // 폰: 0.3초 롱프레스 후 색칠 시작 (그 전엔 스크롤 가능)
+    // 폰: 롱프레스 후 색칠 시작 (그 전엔 스크롤 가능)
+    // - 카테고리 선택 안됨: 롱프레스 X, 짧은 탭으로 정보만 표시
+    // - 빈 셀 + 카테고리 선택: 0.3초
+    // - 색칠된 셀 + 카테고리 선택: 0.6초 (실수로 색 바꾸는 거 방지)
     cell.addEventListener('touchstart', (e) => {
-      // 짧은 탭이면 텍스트 표시 (셀에 내용 있을 때만)
       const tappedCell = cell;
       const fullText = tappedCell.getAttribute('title');
       
+      // 짧은 탭 정보 저장 (텍스트 표시용)
+      tappedCell._tapStartTime = Date.now();
+      tappedCell._tapFullText = fullText;
+      
+      // 카테고리 선택 안 되어있으면 롱프레스 X
+      if (state.selectedCategory === null) {
+        return;
+      }
+      
+      // 셀이 이미 색칠되어 있는지 확인
+      const bg = tappedCell.style.background;
+      const isAlreadyPainted = bg && bg !== 'transparent' && bg !== '';
+      const longPressDuration = isAlreadyPainted ? 600 : 300;
+      
       state.longPressTriggered = false;
+      tappedCell._isAlreadyPainted = isAlreadyPainted;
       state.longPressTimer = setTimeout(() => {
-        // 0.3초 지나도 손 안 뗐으면 색칠 모드 시작
         state.longPressTriggered = true;
         state.isPainting = true;
         state.paintMode = state.selectedCategory === '' ? 'erase' : 'add';
-        // 스냅샷 저장
         pushHistory();
-        // 햅틱 피드백 (지원하는 폰에서)
         if (navigator.vibrate) navigator.vibrate(30);
         paintCell(tappedCell);
-      }, 300);
-      
-      // 짧은 탭으로 텍스트 표시 (touchend 시점에 처리)
-      tappedCell._tapStartTime = Date.now();
-      tappedCell._tapFullText = fullText;
+      }, longPressDuration);
     });
 
     // 손 움직이면 롱프레스 취소 (스크롤 시도로 간주)
@@ -903,9 +924,15 @@ function bindPaintInteraction() {
         state.longPressTimer = null;
       }
       // 짧은 탭이고 (롱프레스 안 발동) 셀에 텍스트 있으면 status에 표시
-      if (!state.longPressTriggered && cell._tapFullText && cell._tapStartTime) {
+      if (!state.longPressTriggered && cell._tapStartTime) {
         const tapDuration = Date.now() - cell._tapStartTime;
-        if (tapDuration < 300) {
+        // 카테고리 선택 안되면: 정보 표시만 (시간 제한 넉넉히)
+        // 색칠된 셀: 600ms, 빈 셀: 300ms
+        let tapThreshold = 600;
+        if (state.selectedCategory !== null) {
+          tapThreshold = cell._isAlreadyPainted ? 600 : 300;
+        }
+        if (tapDuration < tapThreshold && cell._tapFullText) {
           showCellInfo(cell._tapFullText);
         }
       }
