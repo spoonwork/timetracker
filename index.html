@@ -888,9 +888,25 @@ function renderDaily() {
         
         const bgGradient = `linear-gradient(to right, ${stops.join(', ')})`;
         
-        // 첫 활동의 라벨을 셀에 표시 (시작 셀일 때만)
+        // 첫 활동의 라벨을 셀에 표시 (활동의 진짜 시작 칸에만)
+        // 이전 칸에서 이어진 활동이면 라벨 표시 안 함
         const firstSeg = segments[0];
-        if (firstSeg.start === slotMinStart) {
+        // firstSeg에 대응하는 원본 활동 찾기
+        let originalStart = null;
+        if (firstSeg.manual) {
+          const orig = blocks.find(b => b.category === firstSeg.category && 
+                                         b.startMin <= firstSeg.start && 
+                                         firstSeg.end <= b.endMin);
+          if (orig) originalStart = orig.startMin;
+        } else {
+          const orig = auto.find(a => a.label === firstSeg.label && 
+                                       a.category === firstSeg.category &&
+                                       a.startMin <= firstSeg.start && 
+                                       firstSeg.end <= a.endMin);
+          if (orig) originalStart = orig.startMin;
+        }
+        // 활동의 원본 시작이 이 칸 안에 있을 때만 라벨 표시
+        if (originalStart !== null && originalStart >= slotMinStart && originalStart < slotMinEnd) {
           firstLabel = firstSeg.label || firstSeg.category;
         }
         
