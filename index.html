@@ -16,7 +16,7 @@
     --red: #D14545;
     --hover: #F5F5F5;
     --c-sleep: #C8CDD9;
-    --c-meal: #F5D9C4;
+    --c-meal: #FDF6C8;
     --c-exercise: #C8E4EE;
     --c-out: #DCC8E0;
     --c-hospital: #F0C8C8;
@@ -126,6 +126,10 @@
   .palette .swatch {
     padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 2px;
     border: 1px solid transparent; user-select: none;
+    /* 칸 크기 균일하게 */
+    min-width: 36px;
+    text-align: center;
+    box-sizing: border-box;
   }
   .palette .swatch.active { border-color: var(--text); }
   .palette .swatch.eraser { background: transparent; border: 1px dashed var(--line); }
@@ -223,7 +227,16 @@
   }
   .w-cell {
     border-left: 1px solid var(--line-soft);
-    padding: 2px 3px; font-size: 9px; color: #444; overflow: hidden;
+    padding: 2px 3px; font-size: 9px; color: #444;
+    /* 한 줄로 잘리고 높이 고정 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-height: 22px;
+    max-height: 22px;
+    display: flex;
+    align-items: center;
+    text-shadow: 0 0 2px rgba(255,255,255,0.7);
   }
 
   /* 미니 캘린더 */
@@ -400,7 +413,7 @@
             <div class="swatch" data-cat="운동" style="background: var(--c-exercise);">운동</div>
             <div class="swatch" data-cat="외출" style="background: var(--c-out);">외출</div>
             <div class="swatch" data-cat="병원" style="background: var(--c-hospital);">병원</div>
-            <div class="swatch" data-cat="취미" style="background: var(--c-hobby);">취미</div>
+            <div class="swatch" data-cat="힐링" style="background: var(--c-hobby);">힐링</div>
             <div class="swatch" data-cat="휴식" style="background: var(--c-rest);">휴식</div>
             <div class="swatch eraser" data-cat="">지우개</div>
           </div>
@@ -455,12 +468,12 @@
         <div class="card">
           <div class="card-title">PALETTE</div>
           <div class="palette">
+            <div class="swatch" style="background: var(--c-work); color: white;">작업</div>
             <div class="swatch" style="background: var(--c-sleep);">수면</div>
             <div class="swatch" style="background: var(--c-meal);">식사</div>
             <div class="swatch" style="background: var(--c-exercise);">운동</div>
             <div class="swatch" style="background: var(--c-out);">외출</div>
-            <div class="swatch" style="background: var(--c-work); color: white;">작업</div>
-            <div class="swatch" style="background: var(--c-hobby);">취미</div>
+            <div class="swatch" style="background: var(--c-hobby);">힐링</div>
             <div class="swatch" style="background: var(--c-rest);">휴식</div>
             <div class="swatch" style="background: var(--c-tax);">세무</div>
           </div>
@@ -514,14 +527,14 @@ const CONFIG = {
   SYNC_INTERVAL_MS: 5 * 60 * 1000,  // 5분마다 자동 동기화
   CATEGORIES: {
     '수면': '#C8CDD9',
-    '식사': '#F5D9C4',
+    '식사': '#FDF6C8',
     '운동': '#C8E4EE',
     '외출': '#DCC8E0',
     '병원': '#F0C8C8',
     '출근': '#DDE5C8',
     '퇴근': '#DDE5C8',
     '작업': '#E85A5A',
-    '취미': '#F5C6D9',
+    '힐링': '#F5C6D9',
     '휴식': '#C9E2C9',
     '그림': '#E85A5A',
     '3D': '#E56161',
@@ -1480,7 +1493,32 @@ function loadFromLocal() {
       const obj = JSON.parse(raw);
       Object.assign(state, obj);
     }
+    // 마이그레이션: 기존 "취미" → "힐링"으로 자동 변환
+    migrateCategory('취미', '힐링');
   } catch (e) { console.error(e); }
+}
+
+function migrateCategory(oldName, newName) {
+  let changed = false;
+  // manualBlocks 안의 카테고리 변환
+  Object.keys(state.manualBlocks || {}).forEach(d => {
+    state.manualBlocks[d].forEach(b => {
+      if (b.category === oldName) {
+        b.category = newName;
+        changed = true;
+      }
+    });
+  });
+  // hourMarkers 안의 카테고리 변환
+  Object.keys(state.hourMarkers || {}).forEach(d => {
+    Object.keys(state.hourMarkers[d]).forEach(h => {
+      if (state.hourMarkers[d][h] === oldName) {
+        state.hourMarkers[d][h] = newName;
+        changed = true;
+      }
+    });
+  });
+  if (changed) saveToLocal();
 }
 
 function escapeHtml(s) {
@@ -1838,6 +1876,8 @@ function applyAppData(appData) {
   if (appData.hourPlans) state.hourPlans = appData.hourPlans;
   if (appData.hourMarkers) state.hourMarkers = appData.hourMarkers;
   if (appData.see) state.see = appData.see;
+  // 기존 "취미" → "힐링" 마이그레이션
+  migrateCategory('취미', '힐링');
 }
 
 async function syncFromSheets(manual = false) {
