@@ -160,7 +160,21 @@
   }
   .pds-row:last-child { border-bottom: 0; }
 
-  .pds-plan { padding: 0; }
+  .pds-plan { padding: 0; display: flex; align-items: center; }
+  .plan-cb {
+    display: inline-block; width: 10px; height: 10px; flex-shrink: 0;
+    border: 1px solid var(--line); border-radius: 1px;
+    margin-left: 4px; cursor: pointer; position: relative;
+    transition: background 0.1s;
+  }
+  .plan-cb.checked { background: var(--text); border-color: var(--text); }
+  .plan-cb.checked::after {
+    content: '✓'; position: absolute; top: -4px; left: 0px;
+    color: var(--bg); font-size: 10px; line-height: 1;
+  }
+  .swatch.todo-add-btn { background: #FFF8E8; border: 1px solid #E5DBB8; }
+  .swatch.todo-add-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+
   .pds-plan input {
     border: 0; background: transparent; width: 100%; height: 100%;
     padding: 4px 8px; font-size: 12px; outline: none;
@@ -474,7 +488,7 @@
             <div class="swatch" data-cat="휴식" style="background: var(--c-rest);">휴식</div>
             <div class="swatch" data-cat="관리" style="background: var(--c-care);">관리</div>
             <div class="swatch eraser" data-cat="">지우개</div>
-          </div>
+            <div class="swatch todo-add-btn" id="btn-todo-add">📋</div>
         </div>
         <div class="pds-grid-header">
           <div>PLAN</div><div></div><div class="h-time">시간</div><div>DO</div>
@@ -731,8 +745,10 @@ const state = {
   todos: {},
   hourPlans: {},
   hourMarkers: {},
+  hourChecks: {},   // { 'YYYY-MM-DD': { h: true/false } }
   see: {},
   autoLogs: {},
+  todoAddMode: false,  // PLAN 칸 클릭 → 할일 추가 모드
 };
 
 const fmtDate = (d) => {
@@ -792,6 +808,17 @@ function bindUI() {
   document.getElementById('btn-today').onclick = () => { state.date = new Date(); render(); };
   document.getElementById('btn-undo').onclick = () => undoLastAction();
   document.getElementById('btn-sync').onclick = () => syncFromSheets(true);
+
+  // 📋 할일 추가 모드 토글
+  document.getElementById('btn-todo-add').onclick = () => {
+    state.todoAddMode = !state.todoAddMode;
+    // 📋 모드 켜면 색칠 모드 해제
+    if (state.todoAddMode) {
+      state.selectedCategory = null;
+      document.querySelectorAll('#palette .swatch').forEach(s => s.classList.remove('active'));
+    }
+    document.getElementById('btn-todo-add').classList.toggle('active', state.todoAddMode);
+  };
 
   document.getElementById('header-title').onclick = () => {
     if (state.view !== 'monthly') switchView('monthly');
@@ -912,7 +939,10 @@ function renderDaily() {
     const planText = plans[h] || '';
 
     html += `<div class="pds-row">`;
-    html += `<div class="pds-plan"><input type="text" data-hour="${h}" value="${escapeAttr(planText)}" placeholder="" /></div>`;
+    const isChecked = (state.hourChecks[ds] || {})[h] || false;
+    html += `<div class="pds-plan">`;
+    html += `<span class="plan-cb ${isChecked ? 'checked' : ''}" data-hour="${h}"></span>`;
+    html += `<input type="text" data-hour="${h}" value="${escapeAttr(planText)}" placeholder="" /></div>`;
     
     const markerData = markers[h];
     let topCat = '', bottomCat = '';
@@ -1065,9 +1095,48 @@ function renderDaily() {
 function bindPlanInputs() {
   let planInputDebounce = null;
   const allInputs = document.querySelectorAll('.pds-plan input');
+
+  // 체크박스 바인딩
+  document.querySelectorAll('.plan-cb').forEach(cb => {
+    cb.onclick = (e) => {
+      e.stopPropagation();
+      const ds = fmtDate(state.date);
+      const h = parseInt(cb.dataset.hour);
+      const planText = (state.hourPlans[ds] || {})[h] || '';
+      if (!planText.trim()) return; // 텍스트 없으면 체크 안됨
+
+      pushHistory();
+      if (!state.hourChecks[ds]) state.hourChecks[ds] = {};
+      const nowChecked = !state.hourChecks[ds][h];
+      state.hourChecks[ds][h] = nowChecked;
+
+      // 사이드바 할일 연동
+      syncPlanToTodo(ds, h, planText, nowChecked);
+      saveToLocal();
+      renderTodos();
+      cb.classList.toggle('checked', nowChecked);
+    };
+  });
+
   allInputs.forEach((inp, idx) => {
     let oldValue = inp.value;
     inp.addEventListener('focus', () => {
+      // 📋 모드면 포커스 즉시 해제하고 할일 추가
+      if (state.todoAddMode) {
+        inp.blur();
+        const ds = fmtDate(state.date);
+        const h = parseInt(inp.dataset.hour);
+        const planText = (state.hourPlans[ds] || {})[h] || '';
+        if (!planText.trim()) return;
+        pushHistory();
+        syncPlanToTodo(ds, h, planText, (state.hourChecks[ds] || {})[h] || false);
+        saveToLocal();
+        renderTodos();
+        // 추가됐다는 시각 피드백
+        inp.style.background = 'rgba(100,200,100,0.2)';
+        setTimeout(() => { inp.style.background = ''; }, 600);
+        return;
+      }
       oldValue = inp.value;
     });
     inp.addEventListener('input', (e) => {
@@ -1358,6 +1427,21 @@ function calcSleepWindow(date) {
   return total;
 }
 
+// PLAN 텍스트 → 사이드바 할일 연동
+// 이미 같은 planKey로 등록된 항목이 있으면 업데이트, 없으면 추가
+function syncPlanToTodo(ds, h, text, done) {
+  if (!text.trim()) return;
+  if (!state.todos[ds]) state.todos[ds] = [];
+  const planKey = `__plan_${h}`;
+  const existing = state.todos[ds].find(t => t.planKey === planKey);
+  if (existing) {
+    existing.text = text;
+    existing.done = done;
+  } else {
+    state.todos[ds].push({ text, done, planKey });
+  }
+}
+
 function renderTodos() {
   const ds = fmtDate(state.date);
   const list = state.todos[ds] || [];
@@ -1372,6 +1456,15 @@ function renderTodos() {
     cb.onclick = () => {
       const i = parseInt(cb.dataset.idx);
       list[i].done = !list[i].done;
+      // planKey 있으면 PLAN 체크박스도 연동
+      if (list[i].planKey) {
+        const h = parseInt(list[i].planKey.replace('__plan_', ''));
+        if (!state.hourChecks[ds]) state.hourChecks[ds] = {};
+        state.hourChecks[ds][h] = list[i].done;
+        // DOM 체크박스 즉시 업데이트
+        const planCb = document.querySelector(`.plan-cb[data-hour="${h}"]`);
+        if (planCb) planCb.classList.toggle('checked', list[i].done);
+      }
       saveToLocal();
       renderTodos();
     };
@@ -1664,6 +1757,7 @@ function saveToLocal() {
     todos: state.todos,
     hourPlans: state.hourPlans,
     hourMarkers: state.hourMarkers,
+    hourChecks: state.hourChecks,
     see: state.see,
   }));
   if (typeof scheduleRemoteSave === 'function') {
@@ -1956,6 +2050,7 @@ async function saveAllAppData() {
     await saveToRemote('todos', state.todos);
     await saveToRemote('hourPlans', state.hourPlans);
     await saveToRemote('hourMarkers', state.hourMarkers);
+    await saveToRemote('hourChecks', state.hourChecks);
     await saveToRemote('see', state.see);
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -2138,6 +2233,7 @@ function applyAppData(appData) {
   if (appData.todos) state.todos = appData.todos;
   if (appData.hourPlans) state.hourPlans = appData.hourPlans;
   if (appData.hourMarkers) state.hourMarkers = appData.hourMarkers;
+  if (appData.hourChecks) state.hourChecks = appData.hourChecks;
   if (appData.see) state.see = appData.see;
   migrateCategory('취미', '힐링');
 }
