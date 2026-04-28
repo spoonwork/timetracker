@@ -170,12 +170,23 @@
   .pds-plan input::placeholder { color: var(--text-subtle); font-style: italic; }
   .pds-plan input:focus { background: rgba(255, 240, 200, 0.3); }
 
-  .pds-marker {
+  /* PLAN 마커 영역 - 30분씩 2칸 */
+  .pds-marker-col {
     border-left: 1px solid var(--line-soft);
-    cursor: pointer; background: transparent;
-    transition: background 0.15s;
+    display: flex;
+    flex-direction: column;
   }
-  .pds-marker:hover { outline: 1px solid var(--line); }
+  .pds-marker-half {
+    flex: 1;
+    cursor: pointer;
+    background: transparent;
+    transition: background 0.15s;
+    min-height: 12px;
+  }
+  .pds-marker-half:hover { outline: 1px solid var(--line); }
+  .pds-marker-bottom {
+    border-top: 1px dotted var(--line-soft);
+  }
 
   .pds-time {
     text-align: center;
@@ -922,12 +933,29 @@ function renderDaily() {
   for (let h = CONFIG.DAY_START_HOUR; h <= CONFIG.DAY_END_HOUR - 1; h++) {
     const dispH = h % 24;
     const planText = plans[h] || '';
-    const markerCat = markers[h];
-    const markerBg = markerCat ? (CONFIG.CATEGORIES[markerCat] || 'transparent') : 'transparent';
 
     html += `<div class="pds-row">`;
     html += `<div class="pds-plan"><input type="text" data-hour="${h}" value="${escapeAttr(planText)}" placeholder="" /></div>`;
-    html += `<div class="pds-marker" data-hour="${h}" style="background: ${markerBg};"></div>`;
+    
+    // 마커: 30분 단위 2칸 (위 = 0~30분, 아래 = 30~60분)
+    const markerData = markers[h];
+    let topCat = '', bottomCat = '';
+    if (typeof markerData === 'string') {
+      // 하위 호환: 기존 string 데이터는 위/아래 모두 같은 색
+      topCat = markerData;
+      bottomCat = markerData;
+    } else if (markerData && typeof markerData === 'object') {
+      topCat = markerData.top || '';
+      bottomCat = markerData.bottom || '';
+    }
+    const topBg = topCat ? (CONFIG.CATEGORIES[topCat] || 'transparent') : 'transparent';
+    const bottomBg = bottomCat ? (CONFIG.CATEGORIES[bottomCat] || 'transparent') : 'transparent';
+    
+    html += `<div class="pds-marker-col">`;
+    html += `  <div class="pds-marker-half pds-marker-top" data-hour="${h}" data-half="top" style="background: ${topBg};"></div>`;
+    html += `  <div class="pds-marker-half pds-marker-bottom" data-hour="${h}" data-half="bottom" style="background: ${bottomBg};"></div>`;
+    html += `</div>`;
+    
     html += `<div class="pds-time">${dispH}</div>`;
     html += `<div class="pds-do">`;
     for (let s = 0; s < CONFIG.SLOTS_PER_HOUR; s++) {
@@ -1079,7 +1107,8 @@ function renderDaily() {
 
 function bindPlanInputs() {
   let planInputDebounce = null;
-  document.querySelectorAll('.pds-plan input').forEach(inp => {
+  const allInputs = document.querySelectorAll('.pds-plan input');
+  allInputs.forEach((inp, idx) => {
     let oldValue = inp.value;
     inp.addEventListener('focus', () => {
       oldValue = inp.value;
@@ -1100,27 +1129,54 @@ function bindPlanInputs() {
       planInputDebounce = setTimeout(() => { oldValue = val; }, 1000);
       saveToLocal();
     });
+    // Enter 키 → 다음 줄로 포커스 이동
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const next = allInputs[idx + 1];
+        if (next) next.focus();
+      }
+    });
   });
 }
 
 function bindMarkers() {
-  document.querySelectorAll('.pds-marker').forEach(el => {
+  document.querySelectorAll('.pds-marker-half').forEach(el => {
     el.onclick = () => {
       // 카테고리 선택 안되면 동작 X
       if (state.selectedCategory === null) return;
       pushHistory();
       const ds = fmtDate(state.date);
       const h = parseInt(el.dataset.hour);
+      const half = el.dataset.half;  // 'top' or 'bottom'
+      
       if (!state.hourMarkers[ds]) state.hourMarkers[ds] = {};
-      const currentCat = state.hourMarkers[ds][h];
+      
+      // 기존 데이터를 객체로 변환
+      let markerData = state.hourMarkers[ds][h];
+      if (typeof markerData === 'string') {
+        markerData = { top: markerData, bottom: markerData };
+      } else if (!markerData || typeof markerData !== 'object') {
+        markerData = { top: '', bottom: '' };
+      }
+      
+      const currentCat = markerData[half] || '';
       const selectedCat = state.selectedCategory;
-
+      
       if (selectedCat === '' || currentCat === selectedCat) {
-        delete state.hourMarkers[ds][h];
+        // 같은 카테고리 다시 누르면 지우기
+        markerData[half] = '';
         el.style.background = 'transparent';
       } else {
-        state.hourMarkers[ds][h] = selectedCat;
+        markerData[half] = selectedCat;
         el.style.background = CONFIG.CATEGORIES[selectedCat] || 'transparent';
+      }
+      
+      // 둘 다 비어있으면 키 자체 삭제
+      if (!markerData.top && !markerData.bottom) {
+        delete state.hourMarkers[ds][h];
+      } else {
+        state.hourMarkers[ds][h] = markerData;
       }
       saveToLocal();
     };
@@ -1130,15 +1186,25 @@ function bindMarkers() {
 function bindPaintInteraction() {
   const cells = document.querySelectorAll('.pds-cell');
   cells.forEach(cell => {
-    // PC: 마우스는 즉시 색칠 (카테고리 선택돼있을 때만)
+    // PC: 마우스는 즉시 색칠/토글 (카테고리 선택돼있을 때만)
+    // 같은 색이 이미 있으면 → 지우기, 아니면 → 색칠/변경
     cell.addEventListener('mousedown', (e) => {
       // 선택된 카테고리 없으면 색칠 안 함
       if (state.selectedCategory === null) return;
       e.preventDefault();
       pushHistory();
       state.isPainting = true;
-      state.paintMode = (e.button === 2 || state.selectedCategory === '') ? 'erase' : 'add';
-      paintCell(cell);
+      // 우클릭 또는 지우개 선택 → 무조건 지우기
+      if (e.button === 2 || state.selectedCategory === '') {
+        state.paintMode = 'erase';
+      } else {
+        // 평소엔 add 모드, paintCell 안에서 같은 색이면 토글로 지움
+        state.paintMode = 'add';
+      }
+      // 첫 셀은 토글 가능
+      paintCell(cell, true);
+      // 다음 드래그 시작 — 한 번 토글 후엔 같은 색 만나도 지우지 않음 (드래그 일관성)
+      state.justToggled = true;
     });
 
     // 폰: 롱프레스 후 색칠 시작 (그 전엔 스크롤 가능)
@@ -1168,10 +1234,19 @@ function bindPaintInteraction() {
       state.longPressTimer = setTimeout(() => {
         state.longPressTriggered = true;
         state.isPainting = true;
-        state.paintMode = state.selectedCategory === '' ? 'erase' : 'add';
+        // 지우개 선택 → 지우기, 빈 셀 → 색칠, 색칠된 셀 → 지우기
+      state.longPressTimer = setTimeout(() => {
+        state.longPressTriggered = true;
+        state.isPainting = true;
+        if (state.selectedCategory === '') {
+          state.paintMode = 'erase';
+        } else {
+          state.paintMode = 'add';  // paintCell 안에서 토글 처리
+        }
         pushHistory();
         if (navigator.vibrate) navigator.vibrate(30);
-        paintCell(tappedCell);
+        paintCell(tappedCell, true);
+        state.justToggled = true;
       }, longPressDuration);
     });
 
@@ -1236,15 +1311,21 @@ function bindPaintInteraction() {
   });
 }
 
-function paintCell(cell) {
+function paintCell(cell, isToggle) {
   const min = parseInt(cell.dataset.min);
   const ds = fmtDate(state.date);
   if (!state.manualBlocks[ds]) state.manualBlocks[ds] = [];
   const blocks = state.manualBlocks[ds];
 
   const idx = blocks.findIndex(b => b.startMin <= min && min < b.endMin);
+  
+  // 토글 모드: 같은 색이 이미 칠해진 칸을 클릭하면 지우기
+  let actualMode = state.paintMode;
+  if (isToggle && state.paintMode === 'add' && idx >= 0 && blocks[idx].category === state.selectedCategory) {
+    actualMode = 'erase';
+  }
 
-  if (state.paintMode === 'erase') {
+  if (actualMode === 'erase') {
     if (idx >= 0) {
       const b = blocks[idx];
       const newBlocks = [];
@@ -1267,7 +1348,7 @@ function paintCell(cell) {
     }
   }
 
-  const bg = state.paintMode === 'erase' ? 'transparent' : (CONFIG.CATEGORIES[state.selectedCategory] || '#EEE');
+  const bg = actualMode === 'erase' ? 'transparent' : (CONFIG.CATEGORIES[state.selectedCategory] || '#EEE');
   cell.style.background = bg;
   saveToLocal();
 }
