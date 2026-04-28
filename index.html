@@ -128,6 +128,10 @@
     border-bottom: 1px solid var(--line-soft);
     flex-wrap: wrap; gap: 8px;
   }
+  @media (min-width: 700px) {
+    .pds-header { flex-wrap: nowrap; }
+    .palette { flex-wrap: nowrap; }
+  }
   .pds-header .card-title { margin: 0; }
 
   .palette { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -489,6 +493,7 @@
             <div class="swatch" data-cat="관리" style="background: var(--c-care);">관리</div>
             <div class="swatch eraser" data-cat="">지우개</div>
             <div class="swatch todo-add-btn" id="btn-todo-add">📋</div>
+          </div>
         </div>
         <div class="pds-grid-header">
           <div>PLAN</div><div></div><div class="h-time">시간</div><div>DO</div>
