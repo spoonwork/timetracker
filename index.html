@@ -134,7 +134,6 @@
   .palette .swatch {
     padding: 3px 8px; font-size: 11px; cursor: pointer; border-radius: 2px;
     border: 1px solid transparent; user-select: none;
-    /* 칸 크기 균일하게 */
     min-width: 36px;
     text-align: center;
     box-sizing: border-box;
@@ -170,7 +169,6 @@
   .pds-plan input::placeholder { color: var(--text-subtle); font-style: italic; }
   .pds-plan input:focus { background: rgba(255, 240, 200, 0.3); }
 
-  /* PLAN 마커 영역 - 30분씩 2칸 */
   .pds-marker-col {
     border-left: 1px solid var(--line-soft);
     display: flex;
@@ -203,16 +201,13 @@
     border-left: 1px solid var(--line-soft);
     padding: 2px 3px; font-size: 9px;
     color: #444; cursor: pointer;
-    /* 한 줄로 잘리게 */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    /* 행 높이 고정 */
     min-height: 26px;
     max-height: 26px;
     display: flex;
     align-items: center;
-    /* 텍스트 가독성: 약한 흰색 그림자 */
     text-shadow: 0 0 2px rgba(255,255,255,0.7);
   }
   .pds-cell:first-child { border-left: 0; }
@@ -265,7 +260,6 @@
   .w-cell {
     border-left: 1px solid var(--line-soft);
     padding: 2px 3px; font-size: 9px; color: #444;
-    /* 한 줄로 잘리고 높이 고정 */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -589,7 +583,7 @@ const CONFIG = {
   PIN: '0000',
   SPREADSHEET_ID: '1a6ffXAJLFuaR7emkrBKjMI-yW3_QxhP7lAsPIrfEiVA',
   APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzKAlhhA02RpnXPVrTLIDrfpQooM2OGlV4jQaNgzrG4tZav9ir84K8nxsr6saQVPT_d/exec',
-  SYNC_INTERVAL_MS: 5 * 60 * 1000,  // 5분마다 자동 동기화
+  SYNC_INTERVAL_MS: 5 * 60 * 1000,
   CATEGORIES: {
     '수면': '#C8CDD9',
     '식사': '#FDF6C8',
@@ -613,7 +607,6 @@ const CONFIG = {
   WORK_CATEGORIES: ['작업', '그림', '3D', '3D배경', 'AI', '코딩', '문서'],
   TAX_CATEGORIES: ['세무'],
   SLEEP_CATEGORIES: ['수면'],
-  // logs의 app/title에 매칭되는 키워드 → 카테고리
   AUTO_KEYWORD_MAP: [
     ['CLIPStudioPaint', '그림'],
     ['SketchUp', '3D배경'],
@@ -652,9 +645,6 @@ const CONFIG = {
     ['hanalife', '세무'],
     ['hyundaicapital', '세무'],
   ],
-  // 라벨 변환 (그리드에 표시되는 짧은 이름)
-  // [정규식 또는 문자열 매칭, 표시할 이름]
-  // 위에서부터 순서대로 매칭 - 가장 구체적인 게 먼저
   LABEL_MAP: [
     ['CLIPStudioPaint', 'CSP'],
     ['SketchUp', 'SU'],
@@ -682,7 +672,6 @@ const CONFIG = {
     ['ShellExperienceHost', '쉘'],
     ['explorer', '탐색기'],
     ['SearchApp', '검색'],
-    // 마스킹 (정확한 이름 노출 X)
     ['YULDO', '커뮤'],
     ['yul-do', '커뮤'],
     ['dmitory', '커뮤'],
@@ -703,9 +692,6 @@ const CONFIG = {
   SLOTS_PER_HOUR: 6,
 };
 
-// =====================================================
-// 만세력 (사주 간지) 데이터 - 함수가 사용하기 전에 선언
-// =====================================================
 var CHEONGAN = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
 var JIJI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
 var SOLAR_TERMS = [
@@ -714,7 +700,6 @@ var SOLAR_TERMS = [
 ];
 var MONTH_JIJI_IDX = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 1];
 
-// 음력 데이터 (1900~2049)
 var LUNAR_INFO = [
   0x04bd8,0x04ae0,0x0a570,0x054d5,0x0d260,0x0d950,0x16554,0x056a0,0x09ad0,0x055d2,
   0x04ae0,0x0a5b6,0x0a4d0,0x0d250,0x1d255,0x0b540,0x0d6a0,0x0ada2,0x095b0,0x14977,
@@ -741,7 +726,7 @@ const state = {
   paintMode: 'add',
   longPressTimer: null,
   longPressTriggered: false,
-  history: [],  // 되돌리기용 스냅샷 (최근 30개)
+  history: [],
   manualBlocks: {},
   todos: {},
   hourPlans: {},
@@ -786,7 +771,6 @@ if (localStorage.getItem('tt-unlocked') === '1') {
   });
 }
 
-// 동기화 관련 전역 상태
 var isSyncing = false;
 var isSavingRemote = false;
 var pendingSaveTimer = null;
@@ -795,7 +779,6 @@ function init() {
   loadFromLocal();
   bindUI();
   render();
-  // 시트 데이터 자동 동기화 시작
   syncFromSheets();
   setInterval(syncFromSheets, CONFIG.SYNC_INTERVAL_MS);
 }
@@ -810,21 +793,18 @@ function bindUI() {
   document.getElementById('btn-undo').onclick = () => undoLastAction();
   document.getElementById('btn-sync').onclick = () => syncFromSheets(true);
 
-  // 헤더 클릭 → 먼슬리로
   document.getElementById('header-title').onclick = () => {
     if (state.view !== 'monthly') switchView('monthly');
   };
 
-  // 위클리에서 월 라벨 클릭 → 먼슬리
   document.getElementById('weekly-month-label').onclick = () => switchView('monthly');
 
   document.querySelectorAll('#palette .swatch').forEach(el => {
     el.onclick = () => {
       const cat = el.dataset.cat;
-      // 이미 선택된 카테고리를 또 누르면 선택 해제 (지우개 제외)
       if (state.selectedCategory === cat && cat !== '') {
         document.querySelectorAll('#palette .swatch').forEach(s => s.classList.remove('active'));
-        state.selectedCategory = null;  // 선택 해제 상태
+        state.selectedCategory = null;
       } else {
         document.querySelectorAll('#palette .swatch').forEach(s => s.classList.remove('active'));
         el.classList.add('active');
@@ -832,7 +812,6 @@ function bindUI() {
       }
     };
   });
-  // 시작은 선택 해제 상태 (정보 보기 모드)
   state.selectedCategory = null;
 
   document.getElementById('add-todo').addEventListener('keypress', (e) => {
@@ -865,7 +844,6 @@ function switchView(v) {
   document.getElementById('view-weekly').style.display = v === 'weekly' ? 'block' : 'none';
   document.getElementById('view-monthly').style.display = v === 'monthly' ? 'block' : 'none';
 
-  // 헤더 클릭 가능 표시
   const titleEl = document.getElementById('header-title');
   titleEl.classList.toggle('clickable', v !== 'monthly');
 
@@ -875,7 +853,6 @@ function switchView(v) {
 function moveDate(delta) {
   const step = state.view === 'weekly' ? 7 : (state.view === 'monthly' ? 30 : 1);
   if (state.view === 'monthly') {
-    // 월 단위 이동
     state.date.setMonth(state.date.getMonth() + delta);
   } else {
     state.date.setDate(state.date.getDate() + delta * step);
@@ -937,11 +914,9 @@ function renderDaily() {
     html += `<div class="pds-row">`;
     html += `<div class="pds-plan"><input type="text" data-hour="${h}" value="${escapeAttr(planText)}" placeholder="" /></div>`;
     
-    // 마커: 30분 단위 2칸 (위 = 0~30분, 아래 = 30~60분)
     const markerData = markers[h];
     let topCat = '', bottomCat = '';
     if (typeof markerData === 'string') {
-      // 하위 호환: 기존 string 데이터는 위/아래 모두 같은 색
       topCat = markerData;
       bottomCat = markerData;
     } else if (markerData && typeof markerData === 'object') {
@@ -962,10 +937,8 @@ function renderDaily() {
       const slotMinStart = (h - CONFIG.DAY_START_HOUR) * 60 + s * 10;
       const slotMinEnd = slotMinStart + 10;
 
-      // 이 10분 칸에 겹치는 모든 활동 찾기
-      const segments = [];  // {start, end, category, label}
+      const segments = [];
       
-      // 수동 블록 (우선)
       blocks.forEach(b => {
         const overlapStart = Math.max(b.startMin, slotMinStart);
         const overlapEnd = Math.min(b.endMin, slotMinEnd);
@@ -977,12 +950,10 @@ function renderDaily() {
         }
       });
       
-      // 자동 로그 (수동에 안 가린 부분만)
       auto.forEach(a => {
         const overlapStart = Math.max(a.startMin, slotMinStart);
         const overlapEnd = Math.min(a.endMin, slotMinEnd);
         if (overlapEnd > overlapStart) {
-          // 수동과 안 겹치는 부분만 추가
           let curStart = overlapStart;
           const manualParts = segments.filter(s => s.manual)
             .map(s => ({ start: Math.max(s.start, overlapStart), end: Math.min(s.end, overlapEnd) }))
@@ -1011,19 +982,14 @@ function renderDaily() {
 
       let cellHtml = '';
       let titleParts = [];
-      let mainCategory = '';
       let firstLabel = '';
 
       if (segments.length === 0) {
         cellHtml = `<div class="pds-cell" data-min="${slotMinStart}" style="background: transparent;"></div>`;
       } else {
-        // 비율 기반 가로 그라데이션
-        const totalDur = segments.reduce((sum, s) => sum + (s.end - s.start), 0);
-        let cumPct = 0;
         const stops = [];
         segments.forEach(seg => {
           const dur = seg.end - seg.start;
-          const pct = (dur / 10) * 100;  // 10분 칸 기준
           const color = CONFIG.CATEGORIES[seg.category] || '#C8DBC8';
           const startPct = (seg.start - slotMinStart) / 10 * 100;
           const endPct = (seg.end - slotMinStart) / 10 * 100;
@@ -1031,18 +997,15 @@ function renderDaily() {
           stops.push(`${color} ${endPct}%`);
           
           const minutes = Math.round(dur);
-          const seconds = Math.round((dur - minutes) * 60);
           const durStr = minutes > 0 ? `${minutes}분` : `${Math.round(dur * 60)}초`;
           titleParts.push(`${seg.label || seg.category} (${durStr})`);
         });
         
-        // 시작 부분에 빈 공간 있으면 transparent
         const firstStart = (segments[0].start - slotMinStart) / 10 * 100;
         if (firstStart > 0) {
           stops.unshift(`transparent ${firstStart}%`);
           stops.unshift(`transparent 0%`);
         }
-        // 끝 부분 빈 공간
         const lastEnd = (segments[segments.length-1].end - slotMinStart) / 10 * 100;
         if (lastEnd < 100) {
           stops.push(`transparent ${lastEnd}%`);
@@ -1051,10 +1014,7 @@ function renderDaily() {
         
         const bgGradient = `linear-gradient(to right, ${stops.join(', ')})`;
         
-        // 첫 활동의 라벨을 셀에 표시 (활동의 진짜 시작 칸에만)
-        // 이전 칸에서 이어진 활동이면 라벨 표시 안 함
         const firstSeg = segments[0];
-        // firstSeg에 대응하는 원본 활동 찾기
         let originalStart = null;
         let originalEnd = null;
         if (firstSeg.manual) {
@@ -1069,14 +1029,11 @@ function renderDaily() {
                                        firstSeg.end <= a.endMin);
           if (orig) { originalStart = orig.startMin; originalEnd = orig.endMin; }
         }
-        // 활동의 원본 시작이 이 칸 안에 있을 때만 라벨 표시
         if (originalStart !== null && originalStart >= slotMinStart && originalStart < slotMinEnd) {
           firstLabel = firstSeg.label || firstSeg.category;
         }
-        // 1시간 이상 이어진 활동이면, 마지막 칸에 경과 시간 표시
         if (originalEnd !== null && originalStart !== null && !firstLabel) {
           const totalDur = originalEnd - originalStart;
-          // 활동 끝나는 칸 = 활동 endMin이 이 슬롯 안 또는 직전에 끝남
           const endsInThisSlot = originalEnd > slotMinStart && originalEnd <= slotMinEnd;
           if (totalDur >= 60 && endsInThisSlot) {
             const h = Math.floor(totalDur / 60);
@@ -1120,7 +1077,6 @@ function bindPlanInputs() {
       const val = e.target.value;
       if (val.trim() === '') delete state.hourPlans[ds][h];
       else state.hourPlans[ds][h] = val;
-      // 히스토리는 입력 시작 시 한 번만 (디바운스)
       if (planInputDebounce) clearTimeout(planInputDebounce);
       if (oldValue !== val && oldValue !== '__pushed__') {
         pushHistory();
@@ -1129,7 +1085,6 @@ function bindPlanInputs() {
       planInputDebounce = setTimeout(() => { oldValue = val; }, 1000);
       saveToLocal();
     });
-    // Enter 키 → 다음 줄로 포커스 이동
     inp.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -1143,16 +1098,14 @@ function bindPlanInputs() {
 function bindMarkers() {
   document.querySelectorAll('.pds-marker-half').forEach(el => {
     el.onclick = () => {
-      // 카테고리 선택 안되면 동작 X
       if (state.selectedCategory === null) return;
       pushHistory();
       const ds = fmtDate(state.date);
       const h = parseInt(el.dataset.hour);
-      const half = el.dataset.half;  // 'top' or 'bottom'
+      const half = el.dataset.half;
       
       if (!state.hourMarkers[ds]) state.hourMarkers[ds] = {};
       
-      // 기존 데이터를 객체로 변환
       let markerData = state.hourMarkers[ds][h];
       if (typeof markerData === 'string') {
         markerData = { top: markerData, bottom: markerData };
@@ -1164,7 +1117,6 @@ function bindMarkers() {
       const selectedCat = state.selectedCategory;
       
       if (selectedCat === '' || currentCat === selectedCat) {
-        // 같은 카테고리 다시 누르면 지우기
         markerData[half] = '';
         el.style.background = 'transparent';
       } else {
@@ -1172,7 +1124,6 @@ function bindMarkers() {
         el.style.background = CONFIG.CATEGORIES[selectedCat] || 'transparent';
       }
       
-      // 둘 다 비어있으면 키 자체 삭제
       if (!markerData.top && !markerData.bottom) {
         delete state.hourMarkers[ds][h];
       } else {
@@ -1186,62 +1137,46 @@ function bindMarkers() {
 function bindPaintInteraction() {
   const cells = document.querySelectorAll('.pds-cell');
   cells.forEach(cell => {
-    // PC: 마우스는 즉시 색칠/토글 (카테고리 선택돼있을 때만)
-    // 같은 색이 이미 있으면 → 지우기, 아니면 → 색칠/변경
     cell.addEventListener('mousedown', (e) => {
-      // 선택된 카테고리 없으면 색칠 안 함
       if (state.selectedCategory === null) return;
       e.preventDefault();
       pushHistory();
       state.isPainting = true;
-      // 우클릭 또는 지우개 선택 → 무조건 지우기
       if (e.button === 2 || state.selectedCategory === '') {
         state.paintMode = 'erase';
       } else {
-        // 평소엔 add 모드, paintCell 안에서 같은 색이면 토글로 지움
         state.paintMode = 'add';
       }
-      // 첫 셀은 토글 가능
       paintCell(cell, true);
-      // 다음 드래그 시작 — 한 번 토글 후엔 같은 색 만나도 지우지 않음 (드래그 일관성)
       state.justToggled = true;
     });
 
-    // 폰: 롱프레스 후 색칠 시작 (그 전엔 스크롤 가능)
-    // - 카테고리 선택 안됨: 롱프레스 X, 짧은 탭으로 정보만 표시
-    // - 빈 셀 + 카테고리 선택: 0.3초
-    // - 색칠된 셀 + 카테고리 선택: 0.6초 (실수로 색 바꾸는 거 방지)
+    // ─── 수정된 touchstart: 중복 setTimeout 제거 ───
     cell.addEventListener('touchstart', (e) => {
       const tappedCell = cell;
       const fullText = tappedCell.getAttribute('title');
-      
-      // 짧은 탭 정보 저장 (텍스트 표시용)
+
       tappedCell._tapStartTime = Date.now();
       tappedCell._tapFullText = fullText;
-      
-      // 카테고리 선택 안 되어있으면 롱프레스 X
+
       if (state.selectedCategory === null) {
         return;
       }
-      
-      // 셀이 이미 색칠되어 있는지 확인
+
       const bg = tappedCell.style.background;
       const isAlreadyPainted = bg && bg !== 'transparent' && bg !== '';
       const longPressDuration = isAlreadyPainted ? 600 : 300;
-      
+
       state.longPressTriggered = false;
       tappedCell._isAlreadyPainted = isAlreadyPainted;
-      state.longPressTimer = setTimeout(() => {
-        state.longPressTriggered = true;
-        state.isPainting = true;
-        // 지우개 선택 → 지우기, 빈 셀 → 색칠, 색칠된 셀 → 지우기
+
       state.longPressTimer = setTimeout(() => {
         state.longPressTriggered = true;
         state.isPainting = true;
         if (state.selectedCategory === '') {
           state.paintMode = 'erase';
         } else {
-          state.paintMode = 'add';  // paintCell 안에서 토글 처리
+          state.paintMode = 'add';
         }
         pushHistory();
         if (navigator.vibrate) navigator.vibrate(30);
@@ -1250,7 +1185,6 @@ function bindPaintInteraction() {
       }, longPressDuration);
     });
 
-    // 손 움직이면 롱프레스 취소 (스크롤 시도로 간주)
     cell.addEventListener('touchmove', (e) => {
       if (state.longPressTimer && !state.longPressTriggered) {
         clearTimeout(state.longPressTimer);
@@ -1258,17 +1192,13 @@ function bindPaintInteraction() {
       }
     });
 
-    // 손 떼면 롱프레스 타이머 정리
     cell.addEventListener('touchend', (e) => {
       if (state.longPressTimer) {
         clearTimeout(state.longPressTimer);
         state.longPressTimer = null;
       }
-      // 짧은 탭이고 (롱프레스 안 발동) 셀에 텍스트 있으면 status에 표시
       if (!state.longPressTriggered && cell._tapStartTime) {
         const tapDuration = Date.now() - cell._tapStartTime;
-        // 카테고리 선택 안되면: 정보 표시만 (시간 제한 넉넉히)
-        // 색칠된 셀: 600ms, 빈 셀: 300ms
         let tapThreshold = 600;
         if (state.selectedCategory !== null) {
           tapThreshold = cell._isAlreadyPainted ? 600 : 300;
@@ -1285,7 +1215,6 @@ function bindPaintInteraction() {
     cell.addEventListener('contextmenu', (e) => e.preventDefault());
   });
 
-  // 색칠 중일 때만 touchmove로 다른 칸 색칠
   document.getElementById('pds-grid').addEventListener('touchmove', (e) => {
     if (!state.isPainting || !state.longPressTriggered) return;
     e.preventDefault();
@@ -1319,7 +1248,6 @@ function paintCell(cell, isToggle) {
 
   const idx = blocks.findIndex(b => b.startMin <= min && min < b.endMin);
   
-  // 토글 모드: 같은 색이 이미 칠해진 칸을 클릭하면 지우기
   let actualMode = state.paintMode;
   if (isToggle && state.paintMode === 'add' && idx >= 0 && blocks[idx].category === state.selectedCategory) {
     actualMode = 'erase';
@@ -1375,7 +1303,6 @@ function calcDayStats(date) {
 
   let workMin = 0, taxMin = 0, distractMin = 0;
   
-  // 자동 로그
   auto.forEach(a => {
     if (CONFIG.WORK_CATEGORIES.includes(a.category)) {
       workMin += a.endMin - a.startMin;
@@ -1386,7 +1313,6 @@ function calcDayStats(date) {
     }
   });
 
-  // 수동 블록 (작업/세무 카테고리)
   manual.forEach(b => {
     if (CONFIG.WORK_CATEGORIES.includes(b.category)) {
       workMin += b.endMin - b.startMin;
@@ -1502,7 +1428,6 @@ function renderWeekly() {
   }
   document.getElementById('w-header').innerHTML = headerHtml;
 
-  // 위클리 헤더 날짜 클릭 → 데일리
   document.querySelectorAll('#w-header div[data-date]').forEach(el => {
     el.onclick = () => {
       const ds = el.dataset.date;
@@ -1538,7 +1463,6 @@ function renderWeekly() {
   }
   document.getElementById('w-grid').innerHTML = gridHtml;
 
-  // 주간 통계
   let weekSleep = 0, weekWork = 0, weekDistract = 0;
   let dayCount = 0;
   for (let i = 0; i < 7; i++) {
@@ -1604,7 +1528,6 @@ function renderMiniCal() {
   const calEl = document.getElementById('mini-cal');
   calEl.innerHTML = html;
 
-  // 미니 캘린더 날짜 클릭 → 데일리
   calEl.querySelectorAll('td[data-date]').forEach(el => {
     el.onclick = () => {
       state.date = new Date(el.dataset.date);
@@ -1621,25 +1544,22 @@ function renderMonthly() {
   const today = new Date();
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
-  const offset = (firstDay.getDay() + 6) % 7;  // 월요일 시작
+  const offset = (firstDay.getDay() + 6) % 7;
 
   const gridEl = document.getElementById('monthly-grid');
   let html = '';
 
-  // 빈 칸 (이전 달)
   for (let i = 0; i < offset; i++) html += `<div class="m-day empty"></div>`;
 
-  // 각 일
   let monthWork = 0, monthTax = 0, monthSleep = 0, dayCount = 0;
   let maxWorkMin = 0;
-  // 정규화용 max 계산 첫 번째 패스
   for (let dt = 1; dt <= lastDay.getDate(); dt++) {
     const dDate = new Date(year, month, dt);
     if (dDate > today) continue;
     const stats = calcDayStats(dDate);
     if (stats.workMin > maxWorkMin) maxWorkMin = stats.workMin;
   }
-  if (maxWorkMin < 60) maxWorkMin = 60;  // 최소 1시간 기준
+  if (maxWorkMin < 60) maxWorkMin = 60;
 
   for (let dt = 1; dt <= lastDay.getDate(); dt++) {
     const dDate = new Date(year, month, dt);
@@ -1656,10 +1576,9 @@ function renderMonthly() {
       dayCount++;
     }
 
-    // 막대 게이지 너비 (작업 시간 비례)
     const workPct = Math.min(stats.workMin / maxWorkMin * 100, 100);
     const taxPct = stats.taxMin > 0 ? Math.min(stats.taxMin / maxWorkMin * 100, 100) : 0;
-    const sleepPct = stats.sleepMin > 0 ? Math.min(stats.sleepMin / 600 * 100, 100) : 0;  // 10시간 기준
+    const sleepPct = stats.sleepMin > 0 ? Math.min(stats.sleepMin / 600 * 100, 100) : 0;
 
     const fmt = (m) => `${Math.floor(m/60)}h ${m%60}m`;
 
@@ -1683,7 +1602,6 @@ function renderMonthly() {
       if (stats.workMin > 0) {
         dayHtml += `<div class="m-num">${fmt(stats.workMin)}</div>`;
       }
-      // 호버 툴팁
       let tipParts = [];
       if (stats.workMin > 0) tipParts.push(`작업 ${fmt(stats.workMin)}`);
       if (stats.taxMin > 0) tipParts.push(`세무 ${fmt(stats.taxMin)}`);
@@ -1696,14 +1614,12 @@ function renderMonthly() {
     html += dayHtml;
   }
 
-  // 마지막 빈 칸
   const totalCells = offset + lastDay.getDate();
   const fillCells = (7 - (totalCells % 7)) % 7;
   for (let i = 0; i < fillCells; i++) html += `<div class="m-day empty"></div>`;
 
   gridEl.innerHTML = html;
 
-  // 날짜 클릭 → 데일리
   gridEl.querySelectorAll('.m-day[data-date]').forEach(el => {
     el.onclick = () => {
       state.date = new Date(el.dataset.date);
@@ -1711,11 +1627,9 @@ function renderMonthly() {
     };
   });
 
-  // 월간 통계
   const fmt = (m) => `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`;
   const avg = (m) => dayCount ? `${(m/60/dayCount).toFixed(1)}h / 일` : '-';
   let topCat = '없음', topMin = 0;
-  // 자동 분류 가장 많은 거 (월 단위)
   const byCat = {};
   for (let dt = 1; dt <= lastDay.getDate(); dt++) {
     const dDate = new Date(year, month, dt);
@@ -1731,7 +1645,6 @@ function renderMonthly() {
     topCat = sorted[0][0];
     topMin = sorted[0][1];
   }
-  const focusPct = (monthWork + 0 > 0) ? '?' : '-';
 
   document.getElementById('month-stats').innerHTML = `
     <div class="stat-row-mini"><span>총 작업</span><span>${fmt(monthWork)}</span></div>
@@ -1753,7 +1666,6 @@ function saveToLocal() {
     hourMarkers: state.hourMarkers,
     see: state.see,
   }));
-  // Apps Script 자동 저장 예약 (1.5초 디바운스)
   if (typeof scheduleRemoteSave === 'function') {
     scheduleRemoteSave();
   }
@@ -1765,29 +1677,20 @@ function loadFromLocal() {
       const obj = JSON.parse(raw);
       Object.assign(state, obj);
     }
-    // 마이그레이션: 기존 "취미" → "힐링"으로 자동 변환
     migrateCategory('취미', '힐링');
   } catch (e) { console.error(e); }
 }
 
 function migrateCategory(oldName, newName) {
   let changed = false;
-  // manualBlocks 안의 카테고리 변환
   Object.keys(state.manualBlocks || {}).forEach(d => {
     state.manualBlocks[d].forEach(b => {
-      if (b.category === oldName) {
-        b.category = newName;
-        changed = true;
-      }
+      if (b.category === oldName) { b.category = newName; changed = true; }
     });
   });
-  // hourMarkers 안의 카테고리 변환
   Object.keys(state.hourMarkers || {}).forEach(d => {
     Object.keys(state.hourMarkers[d]).forEach(h => {
-      if (state.hourMarkers[d][h] === oldName) {
-        state.hourMarkers[d][h] = newName;
-        changed = true;
-      }
+      if (state.hourMarkers[d][h] === oldName) { state.hourMarkers[d][h] = newName; changed = true; }
     });
   });
   if (changed) saveToLocal();
@@ -1802,11 +1705,7 @@ function escapeAttr(s) {
   return String(s).replace(/"/g, '&quot;');
 }
 
-// =====================================================
-// 한국 공휴일 (양력 기준 + 음력 환산된 주요 날짜)
-// =====================================================
 const KR_HOLIDAYS = {
-  // 2025
   '2025-01-01': '신정',
   '2025-01-28': '설날 연휴',
   '2025-01-29': '설날',
@@ -1822,7 +1721,6 @@ const KR_HOLIDAYS = {
   '2025-10-08': '대체공휴일',
   '2025-10-09': '한글날',
   '2025-12-25': '크리스마스',
-  // 2026
   '2026-01-01': '신정',
   '2026-02-16': '설날 연휴',
   '2026-02-17': '설날',
@@ -1853,13 +1751,8 @@ function isToday(date) {
          date.getDate() === t.getDate();
 }
 
-// =====================================================
-// 만세력 (사주 간지) 계산
-// =====================================================
-
-// 일진 계산: 기준일 1900-02-20 = 갑자일 (한국 만세력 표준)
+// ===== 만세력 =====
 function getDayGanji(date) {
-  // 시각 영향 제거 위해 정오(12시) 기준으로 비교
   const target = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
   const baseDate = new Date(1900, 1, 20, 12, 0, 0);
   const msPerDay = 24 * 60 * 60 * 1000;
@@ -1872,15 +1765,11 @@ function getDayGanji(date) {
   };
 }
 
-// 연주 계산: 입춘 기준
-// 1984년 = 갑자(甲子)년 기준
 function getYearGanji(date) {
   let year = date.getFullYear();
-  // 입춘(2/4) 이전은 전년으로
-  const ipchun = new Date(year, 1, 4);  // 2월 4일
+  const ipchun = new Date(year, 1, 4);
   if (date < ipchun) year--;
-  
-  const yearOffset = year - 1984;  // 1984 = 갑자년
+  const yearOffset = year - 1984;
   const idx = ((yearOffset % 60) + 60) % 60;
   return {
     gan: CHEONGAN[idx % 10],
@@ -1890,48 +1779,27 @@ function getYearGanji(date) {
   };
 }
 
-// 월건 계산: 절기 기준 + 오호둔법(연간으로 월간 결정)
 function getMonthGanji(date) {
   const yearGanji = getYearGanji(date);
   const yearGanIdx = yearGanji.yearGanIdx;
-  
-  // 현재 날짜가 어느 절기 구간인지 찾기
-  const m = date.getMonth() + 1;  // 1-12
+  const m = date.getMonth() + 1;
   const d = date.getDate();
   
-  // 절기 인덱스 찾기 (0=입춘, ..., 11=소한)
-  // SOLAR_TERMS[i] 이상 SOLAR_TERMS[i+1] 미만이면 i번째 월건
-  let termIdx = 11;  // 기본값: 소한(축월)
+  let termIdx = 11;
   for (let i = 0; i < 12; i++) {
     const [tm, td] = SOLAR_TERMS[i];
     const nextI = (i + 1) % 12;
     const [ntm, ntd] = SOLAR_TERMS[nextI];
-    
-    // 절기 i부터 i+1 직전까지가 i번째 월
-    // 절기 11(소한)은 1월에 시작해서 다음해 입춘 직전까지
     if (i === 11) {
-      // 소한~입춘 (1/6 ~ 2/3)
-      if ((m === 1 && d >= 6) || (m === 2 && d < 4)) {
-        termIdx = 11;
-        break;
-      }
+      if ((m === 1 && d >= 6) || (m === 2 && d < 4)) { termIdx = 11; break; }
     } else {
-      // 일반: 같은 해 내
       if (m > tm || (m === tm && d >= td)) {
-        if (m < ntm || (m === ntm && d < ntd)) {
-          termIdx = i;
-          break;
-        }
+        if (m < ntm || (m === ntm && d < ntd)) { termIdx = i; break; }
       }
     }
   }
   
-  // 월지
   const monthJijiIdx = MONTH_JIJI_IDX[termIdx];
-  
-  // 월간 (오호둔법): 갑·기년 → 병인월, 을·경년 → 무인월, ...
-  // 인월(첫 번째)의 천간은 (yearGan * 2 + 2) % 10
-  // 인=2부터 시작이므로 termIdx=0이 인월
   const firstMonthGanIdx = (yearGanIdx * 2 + 2) % 10;
   const monthGanIdx = (firstMonthGanIdx + termIdx) % 10;
   
@@ -1942,7 +1810,6 @@ function getMonthGanji(date) {
   };
 }
 
-// 통합: 사주(년월일) 반환
 function getSajuText(date) {
   const y = getYearGanji(date);
   const m = getMonthGanji(date);
@@ -1956,15 +1823,9 @@ function getSajuText(date) {
   };
 }
 
-// =====================================================
-// 음력 변환 (1900~2049)
-// =====================================================
-// 압축된 음력 테이블 (각 해의 윤달, 월별 일수)
-// 출처: KASI 한국천문연구원 데이터 기반
-
+// ===== 음력 =====
 function getLunarDate(date) {
   let i, leap = 0, temp = 0;
-  // 시각 영향 제거 위해 정오 기준
   const target = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
   const baseDate = new Date(1900, 0, 31, 12, 0, 0);
   let offset = Math.round((target.getTime() - baseDate.getTime()) / 86400000);
@@ -1975,10 +1836,7 @@ function getLunarDate(date) {
     offset -= temp;
     lunarYear++;
   }
-  if (offset < 0) {
-    offset += temp;
-    lunarYear--;
-  }
+  if (offset < 0) { offset += temp; lunarYear--; }
   
   leap = leapMonth(lunarYear);
   let isLeap = false;
@@ -1986,63 +1844,38 @@ function getLunarDate(date) {
   
   for (i = 1; i < 13 && offset > 0; i++) {
     if (leap > 0 && i === leap + 1 && !isLeap) {
-      --i;
-      isLeap = true;
-      temp = leapDays(lunarYear);
-    } else {
-      temp = monthDays(lunarYear, i);
-    }
+      --i; isLeap = true; temp = leapDays(lunarYear);
+    } else { temp = monthDays(lunarYear, i); }
     if (isLeap && i === leap + 1) isLeap = false;
     offset -= temp;
     if (!isLeap) lunarMonth++;
   }
   if (offset === 0 && leap > 0 && i === leap + 1) {
-    if (isLeap) {
-      isLeap = false;
-    } else {
-      isLeap = true;
-      --lunarMonth;
-    }
+    if (isLeap) { isLeap = false; } else { isLeap = true; --lunarMonth; }
   }
-  if (offset < 0) {
-    offset += temp;
-    --lunarMonth;
-  }
+  if (offset < 0) { offset += temp; --lunarMonth; }
   const lunarDay = offset + 1;
   
   return {
-    year: lunarYear,
-    month: lunarMonth,
-    day: lunarDay,
-    isLeap: isLeap,
+    year: lunarYear, month: lunarMonth, day: lunarDay, isLeap,
     text: `음 ${lunarMonth}.${lunarDay}` + (isLeap ? '(윤)' : ''),
   };
 }
 
 function lunarYearDays(year) {
   let sum = 348;
-  for (let i = 0x8000; i > 0x8; i >>= 1) {
-    sum += (LUNAR_INFO[year - 1900] & i) ? 1 : 0;
-  }
+  for (let i = 0x8000; i > 0x8; i >>= 1) sum += (LUNAR_INFO[year - 1900] & i) ? 1 : 0;
   return sum + leapDays(year);
 }
 function leapDays(year) {
   if (leapMonth(year)) return (LUNAR_INFO[year - 1900] & 0x10000) ? 30 : 29;
   return 0;
 }
-function leapMonth(year) {
-  return LUNAR_INFO[year - 1900] & 0xf;
-}
-function monthDays(year, month) {
-  return (LUNAR_INFO[year - 1900] & (0x10000 >> month)) ? 30 : 29;
-}
+function leapMonth(year) { return LUNAR_INFO[year - 1900] & 0xf; }
+function monthDays(year, month) { return (LUNAR_INFO[year - 1900] & (0x10000 >> month)) ? 30 : 29; }
 
-// =====================================================
-// 되돌리기 (Undo)
-// =====================================================
-
+// ===== 되돌리기 =====
 function pushHistory() {
-  // 현재 상태 스냅샷을 history에 추가
   const snapshot = {
     manualBlocks: JSON.parse(JSON.stringify(state.manualBlocks)),
     hourPlans: JSON.parse(JSON.stringify(state.hourPlans)),
@@ -2051,7 +1884,6 @@ function pushHistory() {
     see: JSON.parse(JSON.stringify(state.see)),
   };
   state.history.push(snapshot);
-  // 최대 30개 유지 (메모리 절약)
   if (state.history.length > 30) state.history.shift();
 }
 
@@ -2070,29 +1902,19 @@ function undoLastAction() {
   state.see = snapshot.see;
   saveToLocal();
   render();
-  // 햅틱
   if (navigator.vibrate) navigator.vibrate(20);
 }
 
-// 셀 짧은 탭 시 풀텍스트 표시 (폰)
 let cellInfoTimer = null;
 function showCellInfo(text) {
   const statusEl = document.getElementById('status');
   if (cellInfoTimer) clearTimeout(cellInfoTimer);
   statusEl.textContent = '📍 ' + text;
   statusEl.classList.remove('error');
-  cellInfoTimer = setTimeout(() => {
-    statusEl.textContent = '';
-  }, 3000);
+  cellInfoTimer = setTimeout(() => { statusEl.textContent = ''; }, 3000);
 }
 
-// =====================================================
-// Apps Script 양방향 연동
-// =====================================================
-
-/**
- * Apps Script GET → 시트의 모든 데이터 가져오기
- */
+// ===== Apps Script 연동 =====
 async function fetchAllData() {
   const url = CONFIG.APPS_SCRIPT_URL;
   const res = await fetch(url, { method: 'GET', redirect: 'follow' });
@@ -2101,12 +1923,8 @@ async function fetchAllData() {
   return json;
 }
 
-/**
- * Apps Script POST → 키-값 저장
- */
 async function saveToRemote(key, value) {
   const url = CONFIG.APPS_SCRIPT_URL;
-  // CORS 회피를 위해 text/plain 사용 (Apps Script는 어차피 raw body 읽음)
   const res = await fetch(url, {
     method: 'POST',
     redirect: 'follow',
@@ -2118,11 +1936,7 @@ async function saveToRemote(key, value) {
   return json;
 }
 
-/**
- * 디바운스 저장 - 색칠할 때 매번 저장하면 느려서, 1.5초 동안 변경 없으면 저장
- */
 function scheduleRemoteSave() {
-  // 시트에서 가져오는 중엔 저장 예약 안 함 (무한 루프 방지)
   if (isSyncing) return;
   if (pendingSaveTimer) clearTimeout(pendingSaveTimer);
   pendingSaveTimer = setTimeout(async () => {
@@ -2132,24 +1946,17 @@ function scheduleRemoteSave() {
 }
 
 async function saveAllAppData() {
-  if (isSavingRemote) {
-    // 진행 중이면 다시 예약
-    scheduleRemoteSave();
-    return;
-  }
+  if (isSavingRemote) { scheduleRemoteSave(); return; }
   isSavingRemote = true;
   const statusEl = document.getElementById('status');
   try {
     statusEl.textContent = '저장 중...';
     statusEl.classList.remove('error');
-
-    // 4가지 데이터 한번에 저장
     await saveToRemote('manualBlocks', state.manualBlocks);
     await saveToRemote('todos', state.todos);
     await saveToRemote('hourPlans', state.hourPlans);
     await saveToRemote('hourMarkers', state.hourMarkers);
     await saveToRemote('see', state.see);
-
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     statusEl.textContent = `저장됨 (${timeStr})`;
@@ -2162,42 +1969,26 @@ async function saveAllAppData() {
   }
 }
 
-/**
- * 라벨 줄임/마스킹 함수
- * app 또는 title에서 LABEL_MAP과 매칭되는 게 있으면 짧은 이름으로 변환
- * 매칭 안되면 app 이름을 그대로 사용 (단, 길면 자르기)
- */
 function shortenLabel(app, title) {
   const combined = (app + ' ' + (title || '')).toLowerCase();
   for (const [keyword, shortName] of CONFIG.LABEL_MAP) {
-    if (combined.includes(keyword.toLowerCase())) {
-      return shortName;
-    }
+    if (combined.includes(keyword.toLowerCase())) return shortName;
   }
-  // 매칭 실패 시 app 이름 그대로 (chrome 같은 경우)
-  // chrome이면 title 일부만 보여주는 게 더 정보적
   if (app.toLowerCase() === 'chrome' && title) {
-    // title에서 첫 단어/구절만 (' - ' 또는 ' / ' 앞부분)
     const cleaned = title.split(/\s*[\-\/]\s*/)[0].trim();
     return cleaned.length > 8 ? cleaned.substring(0, 8) : cleaned;
   }
-  // 일반 앱은 8자로 제한
   return app.length > 8 ? app.substring(0, 8) : app;
 }
 
-/**
- * logs 행 데이터를 autoLogs 형식으로 변환
- */
 function processLogsRows(rows) {
   if (!rows || rows.length < 2) return {};
   const byDate = {};
-  // rows[0]은 헤더 — A=start, B=end, C=app, D=title, E=category
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row || !row[0]) continue;
-
-    const startVal = row[0];  // start_time
-    const endVal = row[1];    // end_time
+    const startVal = row[0];
+    const endVal = row[1];
     const app = String(row[2] || '');
     const title = String(row[3] || '');
     const cat = String(row[4] || '');
@@ -2206,51 +1997,38 @@ function processLogsRows(rows) {
     const endParts = parseAnyDateTime(endVal);
     if (!startParts || !endParts) continue;
 
-    // 카테고리 결정: 자동 키워드 매칭
     let displayCat = cat;
-    let label = app;
     for (const [keyword, mappedCat] of CONFIG.AUTO_KEYWORD_MAP) {
       if (app.toLowerCase().includes(keyword.toLowerCase()) ||
           title.toLowerCase().includes(keyword.toLowerCase())) {
-        displayCat = mappedCat;
-        break;
+        displayCat = mappedCat; break;
       }
     }
-    // 'work' → '작업'으로 치환
     if (displayCat === 'work') displayCat = '작업';
 
-    // 라벨 줄임/마스킹: app 또는 title에서 매칭
-    label = shortenLabel(app, title);
+    const label = shortenLabel(app, title);
 
     if (!byDate[startParts.date]) byDate[startParts.date] = [];
     byDate[startParts.date].push({
       startMin: startParts.gridMin,
       endMin: endParts.date === startParts.date ? endParts.gridMin : 1380,
       category: displayCat,
-      label: label,
+      label,
     });
   }
 
-  // 인접 같은 카테고리 머지
+  const SHORT_THRESHOLD_SEC = 15;
   Object.keys(byDate).forEach(d => {
     byDate[d].sort((a, b) => a.startMin - b.startMin);
-    
-    // STEP 1: 아주 짧은 활동(15초 미만)만 흡수
-    // 탭 변경처럼 의미있는 활동은 보존
-    // 진짜 잠깐 끼어든 cmd, ScreenClipping 같은 것만 제거
-    const SHORT_THRESHOLD_SEC = 15;
+
     let absorbed = [];
     for (let i = 0; i < byDate[d].length; i++) {
       const cur = byDate[d][i];
-      const durSec = (cur.endMin - cur.startMin) * 60;  // 분 단위 → 초
-      // 짧은 활동인지 + 앞뒤 카테고리가 같은지
+      const durSec = (cur.endMin - cur.startMin) * 60;
       if (durSec < SHORT_THRESHOLD_SEC && i > 0 && i < byDate[d].length - 1) {
         const prev = byDate[d][i - 1];
         const next = byDate[d][i + 1];
         if (prev.category === next.category) {
-          // 가운데 짧은 거를 prev에 흡수 (next는 다음 루프에서 처리됨)
-          // → prev의 endMin을 cur의 endMin으로 확장
-          // (실제 머지는 다음 단계에서)
           absorbed.push({ ...cur, category: prev.category, label: prev.label, _absorbed: true });
           continue;
         }
@@ -2258,22 +2036,16 @@ function processLogsRows(rows) {
       absorbed.push(cur);
     }
     byDate[d] = absorbed;
-    
-    // STEP 2: 인접 같은 카테고리 + 같은 라벨 머지
+
     const merged = [];
     for (const seg of byDate[d]) {
       const last = merged[merged.length - 1];
-      if (last && last.category === seg.category && last.label === seg.label && 
-          last.endMin >= seg.startMin - 1) {
+      if (last && last.category === seg.category && last.label === seg.label && last.endMin >= seg.startMin - 1) {
         last.endMin = Math.max(last.endMin, seg.endMin);
-      } else {
-        merged.push({ ...seg });
-      }
+      } else { merged.push({ ...seg }); }
     }
     byDate[d] = merged;
-    
-    // STEP 3: 그래도 짧은 활동이 외톨이로 남아있으면 (앞뒤 카테고리 다름)
-    //         10분 칸을 차지하지 못하는 활동 (60초 미만)을 양 옆 더 긴 활동에 흡수
+
     const final = [];
     for (let i = 0; i < byDate[d].length; i++) {
       const cur = byDate[d][i];
@@ -2281,16 +2053,10 @@ function processLogsRows(rows) {
       if (durSec < SHORT_THRESHOLD_SEC && i > 0) {
         const prev = final[final.length - 1];
         const next = byDate[d][i + 1];
-        // 앞뒤 중 더 긴 쪽으로 흡수
         const prevDur = prev ? (prev.endMin - prev.startMin) : 0;
         const nextDur = next ? (next.endMin - next.startMin) : 0;
-        if (prevDur >= nextDur && prev) {
-          prev.endMin = cur.endMin;  // prev가 cur 시간만큼 확장
-          continue;
-        } else if (next) {
-          next.startMin = cur.startMin;  // next의 시작을 cur 시작으로
-          continue;
-        }
+        if (prevDur >= nextDur && prev) { prev.endMin = cur.endMin; continue; }
+        else if (next) { next.startMin = cur.startMin; continue; }
       }
       final.push(cur);
     }
@@ -2299,30 +2065,14 @@ function processLogsRows(rows) {
   return byDate;
 }
 
-/**
- * Apps Script가 보낸 datetime 값 파싱
- * - ISO string ("2026-04-25T01:13:00.000Z")
- * - "2026-04-25 01:13:00"
- * - Date 객체 직렬화 결과
- */
 function parseAnyDateTime(val) {
   if (val == null || val === '') return null;
   let dt;
-  if (typeof val === 'string') {
-    dt = new Date(val);
-  } else if (val instanceof Date) {
-    dt = val;
-  } else {
-    dt = new Date(val);
-  }
+  if (typeof val === 'string') dt = new Date(val);
+  else if (val instanceof Date) dt = val;
+  else dt = new Date(val);
   if (isNaN(dt.getTime())) return null;
-  
-  const y = dt.getFullYear();
-  const mo = dt.getMonth() + 1;
-  const d = dt.getDate();
-  const h = dt.getHours();
-  const mi = dt.getMinutes();
-  return makeDateTimeParts(y, mo, d, h, mi);
+  return makeDateTimeParts(dt.getFullYear(), dt.getMonth() + 1, dt.getDate(), dt.getHours(), dt.getMinutes());
 }
 
 function makeDateTimeParts(y, mo, d, h, mi) {
@@ -2330,9 +2080,7 @@ function makeDateTimeParts(y, mo, d, h, mi) {
   let gridMin;
   if (h < CONFIG.DAY_START_HOUR) {
     const dt = new Date(y, mo - 1, d - 1);
-    gridY = dt.getFullYear();
-    gridMo = dt.getMonth() + 1;
-    gridD = dt.getDate();
+    gridY = dt.getFullYear(); gridMo = dt.getMonth() + 1; gridD = dt.getDate();
     gridMin = (h + 24 - CONFIG.DAY_START_HOUR) * 60 + mi;
   } else {
     gridMin = (h - CONFIG.DAY_START_HOUR) * 60 + mi;
@@ -2341,29 +2089,19 @@ function makeDateTimeParts(y, mo, d, h, mi) {
   return { date: dateStr, gridMin };
 }
 
-/**
- * 수동입력 시트 데이터를 manualBlocks 형식으로 변환
- * (시트에 직접 입력한 경우만 — 웹앱 색칠은 appData에 저장됨)
- */
 function processManualSheetRows(rows) {
   if (!rows || rows.length < 2) return {};
   const byDate = {};
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row || !row[0] || !row[3]) continue;
-    
     const dateStr = parseSheetDate(row[0]);
     const startMin = parseSheetTime(row[1]);
     const endMin = parseSheetTime(row[2]);
     const cat = String(row[3]);
     if (!dateStr || startMin == null || endMin == null) continue;
-
     if (!byDate[dateStr]) byDate[dateStr] = [];
-    byDate[dateStr].push({
-      startMin,
-      endMin: endMin > startMin ? endMin : endMin + 24 * 60,
-      category: cat,
-    });
+    byDate[dateStr].push({ startMin, endMin: endMin > startMin ? endMin : endMin + 24 * 60, category: cat });
   }
   return byDate;
 }
@@ -2383,33 +2121,24 @@ function parseSheetDate(val) {
 function parseSheetTime(val) {
   if (!val) return null;
   let h, m;
-  if (val instanceof Date) {
-    h = val.getHours();
-    m = val.getMinutes();
-  } else {
+  if (val instanceof Date) { h = val.getHours(); m = val.getMinutes(); }
+  else {
     const s = String(val);
     const match = s.match(/(\d{1,2}):(\d{2})/);
     if (!match) return null;
-    h = parseInt(match[1]);
-    m = parseInt(match[2]);
+    h = parseInt(match[1]); m = parseInt(match[2]);
   }
-  // 그리드 기준: 06:00 = 0
   if (h < CONFIG.DAY_START_HOUR) return (h + 24 - CONFIG.DAY_START_HOUR) * 60 + m;
   return (h - CONFIG.DAY_START_HOUR) * 60 + m;
 }
 
-/**
- * Apps Script에서 가져온 appData를 state에 적용
- */
 function applyAppData(appData) {
   if (!appData) return;
-  // 시트의 데이터로 로컬 상태 덮어쓰기 (서버가 진실의 원천)
   if (appData.manualBlocks) state.manualBlocks = appData.manualBlocks;
   if (appData.todos) state.todos = appData.todos;
   if (appData.hourPlans) state.hourPlans = appData.hourPlans;
   if (appData.hourMarkers) state.hourMarkers = appData.hourMarkers;
   if (appData.see) state.see = appData.see;
-  // 기존 "취미" → "힐링" 마이그레이션
   migrateCategory('취미', '힐링');
 }
 
@@ -2418,26 +2147,15 @@ async function syncFromSheets(manual = false) {
   isSyncing = true;
   const statusEl = document.getElementById('status');
   const syncBtn = document.getElementById('btn-sync');
-
   try {
-    if (manual) {
-      statusEl.textContent = '동기화 중...';
-      statusEl.classList.remove('error');
-    }
+    if (manual) { statusEl.textContent = '동기화 중...'; statusEl.classList.remove('error'); }
     if (syncBtn) syncBtn.style.opacity = '0.5';
 
     const data = await fetchAllData();
-
-    // logs 처리
     state.autoLogs = processLogsRows(data.logs || []);
-
-    // 수동입력 시트 처리 (시트에 직접 입력한 항목)
     const sheetManual = processManualSheetRows(data.manual || []);
-
-    // appData (웹앱이 저장한 manualBlocks 등) 적용
     applyAppData(data.appData || {});
 
-    // 시트의 수동입력은 appData에 없는 날짜만 추가
     Object.keys(sheetManual).forEach(d => {
       if (!state.manualBlocks[d] || state.manualBlocks[d].length === 0) {
         state.manualBlocks[d] = sheetManual[d];
