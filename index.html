@@ -1115,8 +1115,12 @@ function bindPlanInputs() {
       const nowChecked = !state.hourChecks[ds][h];
       state.hourChecks[ds][h] = nowChecked;
 
-      // 사이드바 할일 연동
-      syncPlanToTodo(ds, h, planText, nowChecked);
+      // planKey로 등록된 할일이 있으면 done 상태만 연동
+      if (state.todos[ds]) {
+        const planKey = `__plan_${h}`;
+        const existing = state.todos[ds].find(t => t.planKey === planKey);
+        if (existing) existing.done = nowChecked;
+      }
       saveToLocal();
       renderTodos();
       cb.classList.toggle('checked', nowChecked);
@@ -1134,7 +1138,7 @@ function bindPlanInputs() {
         const planText = (state.hourPlans[ds] || {})[h] || '';
         if (!planText.trim()) return;
         pushHistory();
-        syncPlanToTodo(ds, h, planText, (state.hourChecks[ds] || {})[h] || false);
+        syncPlanToTodo(ds, h, planText, false);
         saveToLocal();
         renderTodos();
         // 추가됐다는 시각 피드백
@@ -1433,7 +1437,7 @@ function calcSleepWindow(date) {
 }
 
 // PLAN 텍스트 → 사이드바 할일 연동
-// 이미 같은 planKey로 등록된 항목이 있으면 업데이트, 없으면 추가
+// 이미 같은 planKey로 등록된 항목이 있으면 텍스트만 업데이트, done은 건드리지 않음
 function syncPlanToTodo(ds, h, text, done) {
   if (!text.trim()) return;
   if (!state.todos[ds]) state.todos[ds] = [];
@@ -1441,9 +1445,9 @@ function syncPlanToTodo(ds, h, text, done) {
   const existing = state.todos[ds].find(t => t.planKey === planKey);
   if (existing) {
     existing.text = text;
-    existing.done = done;
+    // done은 여기서 건드리지 않음 (체크박스 연동은 별도)
   } else {
-    state.todos[ds].push({ text, done, planKey });
+    state.todos[ds].push({ text, done: false, planKey });
   }
 }
 
