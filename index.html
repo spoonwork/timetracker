@@ -172,6 +172,8 @@
     background: rgba(100,200,100,0.08);
   }
   .todo-add-mode .plan-todo-overlay { display: block; }
+  .todo-add-mode .pds-plan input { pointer-events: none; }
+  .todo-add-mode .pds-plan { cursor: pointer; }
   .plan-cb {
     display: inline-block; width: 10px; height: 10px; flex-shrink: 0;
     border: 1px solid var(--line); border-radius: 1px;
@@ -1135,6 +1137,27 @@ function bindPlanInputs() {
       renderTodos();
       cb.classList.toggle('checked', nowChecked);
     };
+  });
+
+  // 📋 모드: pds-plan 영역 클릭 → 할일 추가
+  document.querySelectorAll('.pds-plan').forEach(planDiv => {
+    planDiv.addEventListener('click', (e) => {
+      if (!state.todoAddMode) return;
+      // 체크박스 클릭은 제외
+      if (e.target.classList.contains('plan-cb')) return;
+      const inp = planDiv.querySelector('input');
+      if (!inp) return;
+      const ds = fmtDate(state.date);
+      const h = parseInt(inp.dataset.hour);
+      const planText = (state.hourPlans[ds] || {})[h] || '';
+      if (!planText.trim()) return;
+      pushHistory();
+      syncPlanToTodo(ds, h, planText, false);
+      saveToLocal();
+      renderTodos();
+      planDiv.style.background = 'rgba(100,200,100,0.25)';
+      setTimeout(() => { planDiv.style.background = ''; }, 500);
+    });
   });
 
   // 오버레이 클릭 → 할일 추가 (PC/폰 모두)
