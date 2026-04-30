@@ -760,6 +760,7 @@ const state = {
   hourPlans: {},
   hourMarkers: {},
   hourChecks: {},   // { 'YYYY-MM-DD': { h: true/false } }
+  hourAlign: {},    // { 'YYYY-MM-DD': { h: 'right' } } — 기본 left, right면 우측정렬
   see: {},
   autoLogs: {},
   todoAddMode: false,  // PLAN 칸 클릭 → 할일 추가 모드
@@ -832,6 +833,10 @@ function bindUI() {
     }
     document.getElementById('btn-todo-add').classList.toggle('active', state.todoAddMode);
     document.getElementById('pds-grid').classList.toggle('todo-add-mode', state.todoAddMode);
+    // input에 직접 pointer-events 적용
+    document.querySelectorAll('#pds-grid .pds-plan input').forEach(inp => {
+      inp.style.pointerEvents = state.todoAddMode ? 'none' : '';
+    });
   };
 
   document.getElementById('header-title').onclick = () => {
@@ -954,9 +959,10 @@ function renderDaily() {
 
     html += `<div class="pds-row">`;
     const isChecked = (state.hourChecks[ds] || {})[h] || false;
+    const align = (state.hourAlign[ds] || {})[h] || 'left';
     html += `<div class="pds-plan">`;
     html += `<span class="plan-cb ${isChecked ? 'checked' : ''}" data-hour="${h}"></span>`;
-    html += `<input type="text" data-hour="${h}" value="${escapeAttr(planText)}" placeholder="" />`;
+    html += `<input type="text" data-hour="${h}" value="${escapeAttr(planText)}" placeholder="" style="text-align:${align};" />`;
     html += `<div class="plan-todo-overlay" data-hour="${h}"></div>`;
     html += `</div>`;
     
@@ -1098,7 +1104,12 @@ function renderDaily() {
     html += `</div></div>`;
   }
   gridEl.innerHTML = html;
-  if (state.todoAddMode) gridEl.classList.add('todo-add-mode');
+  if (state.todoAddMode) {
+    gridEl.classList.add('todo-add-mode');
+    gridEl.querySelectorAll('.pds-plan input').forEach(inp => {
+      inp.style.pointerEvents = 'none';
+    });
+  }
 
   bindPaintInteraction();
   bindPlanInputs();
@@ -1182,6 +1193,34 @@ function bindPlanInputs() {
     // 📋 모드일 때 input 클릭 → 포커스 차단 (오버레이가 처리)
     inp.addEventListener('mousedown', (e) => {
       if (state.todoAddMode) e.preventDefault();
+    });
+
+    // 더블클릭 → 정렬 토글
+    inp.addEventListener('dblclick', () => {
+      const ds = fmtDate(state.date);
+      const h = parseInt(inp.dataset.hour);
+      if (!state.hourAlign[ds]) state.hourAlign[ds] = {};
+      const cur = state.hourAlign[ds][h] || 'left';
+      state.hourAlign[ds][h] = cur === 'left' ? 'right' : 'left';
+      inp.style.textAlign = state.hourAlign[ds][h];
+      saveToLocal();
+    });
+
+    // 더블탭 (폰)
+    let lastTap = 0;
+    inp.addEventListener('touchend', () => {
+      if (state.todoAddMode) return;
+      const now = Date.now();
+      if (now - lastTap < 350) {
+        const ds = fmtDate(state.date);
+        const h = parseInt(inp.dataset.hour);
+        if (!state.hourAlign[ds]) state.hourAlign[ds] = {};
+        const cur = state.hourAlign[ds][h] || 'left';
+        state.hourAlign[ds][h] = cur === 'left' ? 'right' : 'left';
+        inp.style.textAlign = state.hourAlign[ds][h];
+        saveToLocal();
+      }
+      lastTap = now;
     });
 
     inp.addEventListener('focus', () => {
@@ -1853,6 +1892,7 @@ function saveToLocal() {
     hourPlans: state.hourPlans,
     hourMarkers: state.hourMarkers,
     hourChecks: state.hourChecks,
+    hourAlign: state.hourAlign,
     see: state.see,
   }));
   if (typeof scheduleRemoteSave === 'function') {
@@ -2146,6 +2186,7 @@ async function saveAllAppData() {
     await saveToRemote('hourPlans', state.hourPlans);
     await saveToRemote('hourMarkers', state.hourMarkers);
     await saveToRemote('hourChecks', state.hourChecks);
+    await saveToRemote('hourAlign', state.hourAlign);
     await saveToRemote('see', state.see);
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -2329,6 +2370,7 @@ function applyAppData(appData) {
   if (appData.hourPlans) state.hourPlans = appData.hourPlans;
   if (appData.hourMarkers) state.hourMarkers = appData.hourMarkers;
   if (appData.hourChecks) state.hourChecks = appData.hourChecks;
+  if (appData.hourAlign) state.hourAlign = appData.hourAlign;
   if (appData.see) state.see = appData.see;
   migrateCategory('취미', '힐링');
 }
