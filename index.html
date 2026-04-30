@@ -164,7 +164,14 @@
   }
   .pds-row:last-child { border-bottom: 0; }
 
-  .pds-plan { padding: 0; display: flex; align-items: center; }
+  .pds-plan { padding: 0; display: flex; align-items: center; position: relative; }
+  .plan-todo-overlay {
+    display: none;
+    position: absolute; inset: 0;
+    z-index: 5; cursor: pointer;
+    background: rgba(100,200,100,0.08);
+  }
+  .todo-add-mode .plan-todo-overlay { display: block; }
   .plan-cb {
     display: inline-block; width: 10px; height: 10px; flex-shrink: 0;
     border: 1px solid var(--line); border-radius: 1px;
@@ -817,12 +824,12 @@ function bindUI() {
   // 📋 할일 추가 모드 토글
   document.getElementById('btn-todo-add').onclick = () => {
     state.todoAddMode = !state.todoAddMode;
-    // 📋 모드 켜면 색칠 모드 해제
     if (state.todoAddMode) {
       state.selectedCategory = null;
       document.querySelectorAll('#palette .swatch').forEach(s => s.classList.remove('active'));
     }
     document.getElementById('btn-todo-add').classList.toggle('active', state.todoAddMode);
+    document.getElementById('pds-grid').classList.toggle('todo-add-mode', state.todoAddMode);
   };
 
   document.getElementById('header-title').onclick = () => {
@@ -947,7 +954,9 @@ function renderDaily() {
     const isChecked = (state.hourChecks[ds] || {})[h] || false;
     html += `<div class="pds-plan">`;
     html += `<span class="plan-cb ${isChecked ? 'checked' : ''}" data-hour="${h}"></span>`;
-    html += `<input type="text" data-hour="${h}" value="${escapeAttr(planText)}" placeholder="" /></div>`;
+    html += `<input type="text" data-hour="${h}" value="${escapeAttr(planText)}" placeholder="" />`;
+    html += `<div class="plan-todo-overlay" data-hour="${h}"></div>`;
+    html += `</div>`;
     
     const markerData = markers[h];
     let topCat = '', bottomCat = '';
@@ -1087,6 +1096,7 @@ function renderDaily() {
     html += `</div></div>`;
   }
   gridEl.innerHTML = html;
+  if (state.todoAddMode) gridEl.classList.add('todo-add-mode');
 
   bindPaintInteraction();
   bindPlanInputs();
@@ -1127,45 +1137,34 @@ function bindPlanInputs() {
     };
   });
 
-  allInputs.forEach((inp, idx) => {
-    let oldValue = inp.value;
-
-    // 📋 모드일 때 input 클릭 → 할일 추가 (mousedown으로 포커스 원천 차단)
-    inp.addEventListener('mousedown', (e) => {
-      if (!state.todoAddMode) return;
-      e.preventDefault();
+  // 오버레이 클릭 → 할일 추가 (PC/폰 모두)
+  document.querySelectorAll('.plan-todo-overlay').forEach(overlay => {
+    overlay.addEventListener('click', () => {
       const ds = fmtDate(state.date);
-      const h = parseInt(inp.dataset.hour);
+      const h = parseInt(overlay.dataset.hour);
       const planText = (state.hourPlans[ds] || {})[h] || '';
       if (!planText.trim()) return;
       pushHistory();
       syncPlanToTodo(ds, h, planText, false);
       saveToLocal();
       renderTodos();
-      inp.style.background = 'rgba(100,200,100,0.2)';
-      setTimeout(() => { inp.style.background = ''; }, 600);
+      overlay.style.background = 'rgba(100,200,100,0.25)';
+      setTimeout(() => { overlay.style.background = ''; }, 500);
+    });
+  });
+
+  allInputs.forEach((inp, idx) => {
+    let oldValue = inp.value;
+
+    // 📋 모드일 때 input 클릭 → 포커스 차단 (오버레이가 처리)
+    inp.addEventListener('mousedown', (e) => {
+      if (state.todoAddMode) e.preventDefault();
     });
 
     inp.addEventListener('focus', () => {
       if (state.todoAddMode) { inp.blur(); return; }
       oldValue = inp.value;
     });
-
-    // 폰 터치
-    inp.addEventListener('touchstart', (e) => {
-      if (!state.todoAddMode) return;
-      e.preventDefault();
-      const ds = fmtDate(state.date);
-      const h = parseInt(inp.dataset.hour);
-      const planText = (state.hourPlans[ds] || {})[h] || '';
-      if (!planText.trim()) return;
-      pushHistory();
-      syncPlanToTodo(ds, h, planText, false);
-      saveToLocal();
-      renderTodos();
-      inp.style.background = 'rgba(100,200,100,0.2)';
-      setTimeout(() => { inp.style.background = ''; }, 600);
-    }, { passive: false });
     inp.addEventListener('input', (e) => {
       const ds = fmtDate(state.date);
       const h = parseInt(e.target.dataset.hour);
