@@ -844,7 +844,7 @@ function bindUI() {
 
   document.getElementById('weekly-month-label').onclick = () => switchView('monthly');
 
-  document.querySelectorAll('#palette .swatch').forEach(el => {
+  document.querySelectorAll('#palette .swatch:not(#btn-todo-add)').forEach(el => {
     el.onclick = () => {
       const cat = el.dataset.cat;
       if (state.selectedCategory === cat && cat !== '') {
