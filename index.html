@@ -181,12 +181,6 @@
     margin-left: 4px; cursor: pointer; position: relative;
     transition: background 0.1s;
   }
-  .plan-align-btn {
-    font-size: 9px; color: var(--text-subtle);
-    cursor: pointer; flex-shrink: 0; padding: 0 2px;
-    user-select: none; line-height: 1;
-  }
-  .plan-align-btn:hover { color: var(--text-muted); }
   .plan-cb.checked::after {
     content: '✓'; position: absolute; top: -4px; left: 0px;
     color: var(--bg); font-size: 10px; line-height: 1;
@@ -966,7 +960,6 @@ function renderDaily() {
     const align = (state.hourAlign[ds] || {})[h] || 'left';
     html += `<div class="pds-plan">`;
     html += `<span class="plan-cb ${isChecked ? 'checked' : ''}" data-hour="${h}"></span>`;
-    html += `<span class="plan-align-btn" data-hour="${h}" title="정렬 전환">${align === 'right' ? '⇤' : '⇥'}</span>`;
     if (state.todoAddMode) {
       // 📋 모드: input 대신 div로 렌더 (터치/클릭 완전 제어)
       html += `<div class="plan-input-fake" data-hour="${h}" style="text-align:${align}; flex:1; padding:4px 8px; font-size:12px; color:var(--text); cursor:pointer; min-height:18px;">${escapeHtml(planText)}</div>`;
@@ -1176,26 +1169,10 @@ function bindPlanInputs() {
     });
   });
 
-  // 정렬 토글 버튼 (PC/폰 공통)
-  document.querySelectorAll('.plan-align-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const ds = fmtDate(state.date);
-      const h = parseInt(btn.dataset.hour);
-      if (!state.hourAlign[ds]) state.hourAlign[ds] = {};
-      const cur = state.hourAlign[ds][h] || 'left';
-      state.hourAlign[ds][h] = cur === 'left' ? 'right' : 'left';
-      const inp = btn.parentElement.querySelector('input');
-      if (inp) inp.style.textAlign = state.hourAlign[ds][h];
-      btn.textContent = state.hourAlign[ds][h] === 'right' ? '⇤' : '⇥';
-      saveToLocal();
-    });
-  });
-
   allInputs.forEach((inp, idx) => {
     let oldValue = inp.value;
 
-    // 📋 모드일 때 input 클릭 → 포커스 차단 (오버레이가 처리)
+    // 📋 모드일 때 input 클릭 → 포커스 차단
     inp.addEventListener('mousedown', (e) => {
       if (state.todoAddMode) e.preventDefault();
     });
@@ -1208,9 +1185,30 @@ function bindPlanInputs() {
       const cur = state.hourAlign[ds][h] || 'left';
       state.hourAlign[ds][h] = cur === 'left' ? 'right' : 'left';
       inp.style.textAlign = state.hourAlign[ds][h];
-      const btn = inp.parentElement.querySelector('.plan-align-btn');
-      if (btn) btn.textContent = state.hourAlign[ds][h] === 'right' ? '⇤' : '⇥';
       saveToLocal();
+    });
+
+    // 롱프레스 → 정렬 토글 (폰)
+    let alignPressTimer = null;
+    inp.addEventListener('touchstart', (e) => {
+      if (state.todoAddMode) return;
+      alignPressTimer = setTimeout(() => {
+        alignPressTimer = null;
+        const ds = fmtDate(state.date);
+        const h = parseInt(inp.dataset.hour);
+        if (!state.hourAlign[ds]) state.hourAlign[ds] = {};
+        const cur = state.hourAlign[ds][h] || 'left';
+        state.hourAlign[ds][h] = cur === 'left' ? 'right' : 'left';
+        inp.style.textAlign = state.hourAlign[ds][h];
+        saveToLocal();
+        if (navigator.vibrate) navigator.vibrate(30);
+      }, 500);
+    }, { passive: true });
+    inp.addEventListener('touchend', () => {
+      if (alignPressTimer) { clearTimeout(alignPressTimer); alignPressTimer = null; }
+    });
+    inp.addEventListener('touchmove', () => {
+      if (alignPressTimer) { clearTimeout(alignPressTimer); alignPressTimer = null; }
     });
 
     inp.addEventListener('focus', () => {
