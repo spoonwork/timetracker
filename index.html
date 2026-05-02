@@ -176,14 +176,15 @@
   .todo-add-mode .pds-plan { cursor: pointer; }
   .pds-plan input:disabled { opacity: 1; color: var(--text); background: transparent; cursor: pointer; }
   .plan-cb {
-    display: inline-block; width: 10px; height: 10px; flex-shrink: 0;
+    display: inline-block; width: 12px; height: 12px; flex-shrink: 0;
     border: 1px solid var(--line); border-radius: 1px;
     margin-left: 4px; cursor: pointer; position: relative;
     transition: background 0.1s;
   }
+  .plan-cb.checked { background: var(--text); border-color: var(--text); }
   .plan-cb.checked::after {
-    content: '✓'; position: absolute; top: -4px; left: 0px;
-    color: var(--bg); font-size: 10px; line-height: 1;
+    content: '✓'; position: absolute; top: -3px; left: 1px;
+    color: var(--bg); font-size: 11px; line-height: 1;
   }
   .swatch.todo-add-btn { background: #FFF8E8; border: 1px solid #E5DBB8; }
   .swatch.todo-add-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
