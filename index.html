@@ -181,7 +181,12 @@
     margin-left: 4px; cursor: pointer; position: relative;
     transition: background 0.1s;
   }
-  .plan-cb.checked { background: var(--text); border-color: var(--text); }
+  .plan-align-btn {
+    font-size: 9px; color: var(--text-subtle);
+    cursor: pointer; flex-shrink: 0; padding: 0 2px;
+    user-select: none; line-height: 1;
+  }
+  .plan-align-btn:hover { color: var(--text-muted); }
   .plan-cb.checked::after {
     content: '✓'; position: absolute; top: -4px; left: 0px;
     color: var(--bg); font-size: 10px; line-height: 1;
@@ -961,6 +966,7 @@ function renderDaily() {
     const align = (state.hourAlign[ds] || {})[h] || 'left';
     html += `<div class="pds-plan">`;
     html += `<span class="plan-cb ${isChecked ? 'checked' : ''}" data-hour="${h}"></span>`;
+    html += `<span class="plan-align-btn" data-hour="${h}" title="정렬 전환">${align === 'right' ? '⇤' : '⇥'}</span>`;
     if (state.todoAddMode) {
       // 📋 모드: input 대신 div로 렌더 (터치/클릭 완전 제어)
       html += `<div class="plan-input-fake" data-hour="${h}" style="text-align:${align}; flex:1; padding:4px 8px; font-size:12px; color:var(--text); cursor:pointer; min-height:18px;">${escapeHtml(planText)}</div>`;
@@ -1170,6 +1176,22 @@ function bindPlanInputs() {
     });
   });
 
+  // 정렬 토글 버튼 (PC/폰 공통)
+  document.querySelectorAll('.plan-align-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const ds = fmtDate(state.date);
+      const h = parseInt(btn.dataset.hour);
+      if (!state.hourAlign[ds]) state.hourAlign[ds] = {};
+      const cur = state.hourAlign[ds][h] || 'left';
+      state.hourAlign[ds][h] = cur === 'left' ? 'right' : 'left';
+      const inp = btn.parentElement.querySelector('input');
+      if (inp) inp.style.textAlign = state.hourAlign[ds][h];
+      btn.textContent = state.hourAlign[ds][h] === 'right' ? '⇤' : '⇥';
+      saveToLocal();
+    });
+  });
+
   allInputs.forEach((inp, idx) => {
     let oldValue = inp.value;
 
@@ -1178,7 +1200,7 @@ function bindPlanInputs() {
       if (state.todoAddMode) e.preventDefault();
     });
 
-    // 더블클릭 → 정렬 토글
+    // 더블클릭 → 정렬 토글 (PC)
     inp.addEventListener('dblclick', () => {
       const ds = fmtDate(state.date);
       const h = parseInt(inp.dataset.hour);
@@ -1186,24 +1208,9 @@ function bindPlanInputs() {
       const cur = state.hourAlign[ds][h] || 'left';
       state.hourAlign[ds][h] = cur === 'left' ? 'right' : 'left';
       inp.style.textAlign = state.hourAlign[ds][h];
+      const btn = inp.parentElement.querySelector('.plan-align-btn');
+      if (btn) btn.textContent = state.hourAlign[ds][h] === 'right' ? '⇤' : '⇥';
       saveToLocal();
-    });
-
-    // 더블탭 (폰)
-    let lastTap = 0;
-    inp.addEventListener('touchend', () => {
-      if (state.todoAddMode) return;
-      const now = Date.now();
-      if (now - lastTap < 350) {
-        const ds = fmtDate(state.date);
-        const h = parseInt(inp.dataset.hour);
-        if (!state.hourAlign[ds]) state.hourAlign[ds] = {};
-        const cur = state.hourAlign[ds][h] || 'left';
-        state.hourAlign[ds][h] = cur === 'left' ? 'right' : 'left';
-        inp.style.textAlign = state.hourAlign[ds][h];
-        saveToLocal();
-      }
-      lastTap = now;
     });
 
     inp.addEventListener('focus', () => {
