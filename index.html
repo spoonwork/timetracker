@@ -1197,6 +1197,56 @@ function bindPlanInputs() {
       saveToLocal();
     });
 
+    // PC: 드래그로 텍스트 행 교환
+    let dragStartY = null;
+    let dragLongPressed = false;
+    let dragPressTimer = null;
+    inp.addEventListener('mousedown', (e) => {
+      if (state.todoAddMode) { e.preventDefault(); return; }
+      dragStartY = e.clientY;
+      dragLongPressed = false;
+      dragPressTimer = setTimeout(() => {
+        dragLongPressed = true;
+        inp.style.background = 'rgba(200,200,255,0.3)';
+        inp.style.cursor = 'grab';
+      }, 500);
+    });
+    inp.addEventListener('mousemove', (e) => {
+      if (!dragLongPressed || dragStartY === null) return;
+      const dy = e.clientY - dragStartY;
+      if (Math.abs(dy) > 20) inp.style.cursor = dy < 0 ? 'n-resize' : 's-resize';
+    });
+    inp.addEventListener('mouseup', (e) => {
+      if (dragPressTimer) { clearTimeout(dragPressTimer); dragPressTimer = null; }
+      inp.style.background = '';
+      inp.style.cursor = '';
+      if (!dragLongPressed || dragStartY === null) return;
+      const dy = e.clientY - dragStartY;
+      if (Math.abs(dy) < 20) { dragLongPressed = false; return; }
+      const ds = fmtDate(state.date);
+      const h = parseInt(inp.dataset.hour);
+      const targetH = dy < 0 ? h - 1 : h + 1;
+      if (targetH < CONFIG.DAY_START_HOUR || targetH > CONFIG.DAY_END_HOUR - 1) return;
+      pushHistory();
+      if (!state.hourPlans[ds]) state.hourPlans[ds] = {};
+      const curText = state.hourPlans[ds][h] || '';
+      const targetText = state.hourPlans[ds][targetH] || '';
+      if (curText) state.hourPlans[ds][targetH] = curText; else delete state.hourPlans[ds][targetH];
+      if (targetText) state.hourPlans[ds][h] = targetText; else delete state.hourPlans[ds][h];
+      if (!state.hourAlign[ds]) state.hourAlign[ds] = {};
+      const curAlign = state.hourAlign[ds][h];
+      const targetAlign = state.hourAlign[ds][targetH];
+      if (curAlign) state.hourAlign[ds][targetH] = curAlign; else delete state.hourAlign[ds][targetH];
+      if (targetAlign) state.hourAlign[ds][h] = targetAlign; else delete state.hourAlign[ds][h];
+      saveToLocal();
+      renderDaily();
+      dragLongPressed = false;
+    });
+    document.addEventListener('mouseup', () => {
+      if (dragPressTimer) { clearTimeout(dragPressTimer); dragPressTimer = null; }
+      if (dragLongPressed) { inp.style.background = ''; inp.style.cursor = ''; dragLongPressed = false; }
+    });
+
     // 롱프레스 후 스와이프 → 텍스트 행 이동
     let swipeStartY = null;
     let swipeLongPressed = false;
