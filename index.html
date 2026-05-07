@@ -1155,17 +1155,25 @@ function bindPlanInputs() {
       if (!state.todoAddMode) return;
       if (e.target.classList.contains('plan-cb')) return;
       const ds = fmtDate(state.date);
-      // fake div 또는 overlay에서 hour 가져오기
       const fakeEl = planDiv.querySelector('[data-hour]');
       if (!fakeEl) return;
       const h = parseInt(fakeEl.dataset.hour);
       const planText = (state.hourPlans[ds] || {})[h] || '';
       if (!planText.trim()) return;
       pushHistory();
-      syncPlanToTodo(ds, h, planText, false);
+      // 이미 등록된 항목이면 제거, 없으면 추가
+      const planKey = `__plan_${h}`;
+      const todos = state.todos[ds] || [];
+      const existingIdx = todos.findIndex(t => t.planKey === planKey);
+      if (existingIdx >= 0) {
+        state.todos[ds].splice(existingIdx, 1);
+        planDiv.style.background = 'rgba(200,100,100,0.2)';
+      } else {
+        syncPlanToTodo(ds, h, planText, false);
+        planDiv.style.background = 'rgba(100,200,100,0.25)';
+      }
       saveToLocal();
       renderTodos();
-      planDiv.style.background = 'rgba(100,200,100,0.25)';
       setTimeout(() => { planDiv.style.background = ''; }, 500);
     });
   });
@@ -1189,8 +1197,57 @@ function bindPlanInputs() {
       saveToLocal();
     });
 
-    // 롱프레스 → 정렬 토글 (폰)
-    let alignPressTimer = null;
+    // 롱프레스 후 스와이프 → 텍스트 행 이동
+    let swipeStartY = null;
+    let swipeLongPressed = false;
+    let swipePressTimer = null;
+    inp.addEventListener('touchstart', (e) => {
+      if (state.todoAddMode) return;
+      swipeStartY = e.touches[0].clientY;
+      swipeLongPressed = false;
+      swipePressTimer = setTimeout(() => {
+        swipeLongPressed = true;
+        if (navigator.vibrate) navigator.vibrate(20);
+        inp.style.background = 'rgba(200,200,255,0.3)';
+      }, 500);
+    }, { passive: true });
+    inp.addEventListener('touchmove', (e) => {
+      if (!swipeLongPressed) {
+        // 롱프레스 전에 움직이면 정렬 타이머 취소
+        if (swipePressTimer) { clearTimeout(swipePressTimer); swipePressTimer = null; }
+        return;
+      }
+      e.preventDefault();
+    }, { passive: false });
+    inp.addEventListener('touchend', (e) => {
+      if (swipePressTimer) { clearTimeout(swipePressTimer); swipePressTimer = null; }
+      inp.style.background = '';
+      if (!swipeLongPressed || swipeStartY === null) return;
+      const dy = e.changedTouches[0].clientY - swipeStartY;
+      if (Math.abs(dy) < 20) return; // 너무 짧으면 무시
+      const ds = fmtDate(state.date);
+      const h = parseInt(inp.dataset.hour);
+      const targetH = dy < 0 ? h - 1 : h + 1;
+      if (targetH < CONFIG.DAY_START_HOUR || targetH > CONFIG.DAY_END_HOUR - 1) return;
+      // 텍스트 교환
+      pushHistory();
+      if (!state.hourPlans[ds]) state.hourPlans[ds] = {};
+      const curText = state.hourPlans[ds][h] || '';
+      const targetText = state.hourPlans[ds][targetH] || '';
+      if (curText) state.hourPlans[ds][targetH] = curText;
+      else delete state.hourPlans[ds][targetH];
+      if (targetText) state.hourPlans[ds][h] = targetText;
+      else delete state.hourPlans[ds][h];
+      // 정렬도 교환
+      if (!state.hourAlign[ds]) state.hourAlign[ds] = {};
+      const curAlign = state.hourAlign[ds][h];
+      const targetAlign = state.hourAlign[ds][targetH];
+      if (curAlign) state.hourAlign[ds][targetH] = curAlign; else delete state.hourAlign[ds][targetH];
+      if (targetAlign) state.hourAlign[ds][h] = targetAlign; else delete state.hourAlign[ds][h];
+      saveToLocal();
+      renderDaily();
+      swipeLongPressed = false;
+    });
     inp.addEventListener('touchstart', (e) => {
       if (state.todoAddMode) return;
       alignPressTimer = setTimeout(() => {
