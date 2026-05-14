@@ -523,7 +523,7 @@
         </div>
 
         <div class="card">
-          <div class="card-title">자동 분류 (TOP 3)</div>
+          <div class="card-title">자동 분류</div>
           <div id="auto-top3"></div>
         </div>
 
@@ -1711,13 +1711,43 @@ function renderAutoTop3() {
     if (!byCat[k]) byCat[k] = 0;
     byCat[k] += a.endMin - a.startMin;
   });
-  const sorted = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const sorted = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
   const fmt = (m) => `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`;
-  document.getElementById('auto-top3').innerHTML = sorted.length ? sorted.map(([k, v]) => `
+  const el = document.getElementById('auto-top3');
+
+  if (!sorted.length) {
+    el.innerHTML = '<div style="color: var(--text-muted); font-size: 11px; font-style: italic;">아직 데이터 없음</div>';
+    return;
+  }
+
+  const top3 = sorted.slice(0, 3);
+  const rest = sorted.slice(3);
+  const isExpanded = el.dataset.expanded === '1';
+
+  const rowHtml = (items) => items.map(([k, v]) => `
     <div style="display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px;">
       <span>${escapeHtml(k)}</span><span style="font-weight: 500;">${fmt(v)}</span>
     </div>
-  `).join('') : '<div style="color: var(--text-muted); font-size: 11px; font-style: italic;">아직 데이터 없음</div>';
+  `).join('');
+
+  el.innerHTML = rowHtml(top3) +
+    (rest.length ? `
+      <div id="auto-rest" style="display: ${isExpanded ? 'block' : 'none'};">
+        ${rowHtml(rest)}
+      </div>
+      <div id="auto-toggle" style="text-align:center; margin-top:4px; font-size:11px; color:var(--text-muted); cursor:pointer; user-select:none;">
+        ${isExpanded ? '▲ 접기' : `▼ 더보기 (${rest.length}개)`}
+      </div>
+    ` : '');
+
+  const toggleBtn = el.querySelector('#auto-toggle');
+  if (toggleBtn) {
+    toggleBtn.onclick = () => {
+      const expanded = el.dataset.expanded === '1';
+      el.dataset.expanded = expanded ? '0' : '1';
+      renderAutoTop3();
+    };
+  }
 }
 
 // ===== 위클리 =====
