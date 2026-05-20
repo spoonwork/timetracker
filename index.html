@@ -840,6 +840,17 @@ function bindUI() {
   document.getElementById('btn-work-focus').onclick = () => {
     state.workFocusMode = !state.workFocusMode;
     document.getElementById('btn-work-focus').classList.toggle('active', state.workFocusMode);
+    const gridEl = document.getElementById('pds-grid');
+    if (state.workFocusMode) {
+      gridEl.classList.add('work-focus-mode');
+    } else {
+      gridEl.classList.remove('work-focus-mode');
+    }
+    const wGrid = document.getElementById('w-grid');
+    if (wGrid) {
+      if (state.workFocusMode) wGrid.classList.add('work-focus-mode');
+      else wGrid.classList.remove('work-focus-mode');
+    }
     render();
   };
   document.getElementById('btn-todo-add').onclick = () => {
@@ -1129,6 +1140,7 @@ function renderDaily() {
   gridEl.innerHTML = html;
   if (state.todoAddMode) gridEl.classList.add('todo-add-mode');
   if (state.workFocusMode) gridEl.classList.add('work-focus-mode');
+  else gridEl.classList.remove('work-focus-mode');
 
   bindPaintInteraction();
   bindPlanInputs();
