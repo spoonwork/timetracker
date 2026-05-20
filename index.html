@@ -172,7 +172,10 @@
     background: rgba(100,200,100,0.08);
   }
   .todo-add-mode .plan-todo-overlay { display: block; }
-  .todo-add-mode .pds-plan input { pointer-events: none; }
+  .work-focus-mode .pds-cell { opacity: 0.15; transition: opacity 0.2s; }
+  .work-focus-mode .pds-cell.is-work { opacity: 1; }
+  .work-focus-mode .w-cell { opacity: 0.15; transition: opacity 0.2s; }
+  .work-focus-mode .w-cell.is-work { opacity: 1; }
   .todo-add-mode .pds-plan { cursor: pointer; }
   .pds-plan input:disabled { opacity: 1; color: var(--text); background: transparent; cursor: pointer; }
   .plan-cb {
@@ -503,6 +506,7 @@
             <div class="swatch" data-cat="관리" style="background: var(--c-care);">관리</div>
             <div class="swatch eraser" data-cat="">지우개</div>
             <div class="swatch todo-add-btn" id="btn-todo-add">📋</div>
+            <div class="swatch" id="btn-work-focus" title="작업 집중 뷰">🔴</div>
           </div>
         </div>
         <div class="pds-grid-header">
@@ -614,7 +618,11 @@ const CONFIG = {
   APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzKAlhhA02RpnXPVrTLIDrfpQooM2OGlV4jQaNgzrG4tZav9ir84K8nxsr6saQVPT_d/exec',
   SYNC_INTERVAL_MS: 5 * 60 * 1000,
   CATEGORIES: {
-    '수면': '#C8CDD9',
+    'EV': '#0EAE50',
+    'PR': '#545454',
+    'XLS': '#42A248',
+    'HWP': '#3A8F40',
+    'Word': '#2E7D32',
     '식사': '#FDF6C8',
     '운동': '#FDF89A',
     '외출': '#DCC8E0',
@@ -633,7 +641,7 @@ const CONFIG = {
     '문서': '#CE776D',
     '세무': '#D5B3BA',
   },
-  WORK_CATEGORIES: ['작업', '그림', '3D', '3D배경', 'AI', '코딩', '문서'],
+  WORK_CATEGORIES: ['작업', '그림', '3D', '3D배경', 'AI', '코딩', '문서', 'XLS', 'HWP', 'Word', 'EV'],
   TAX_CATEGORIES: ['세무'],
   SLEEP_CATEGORIES: ['수면'],
   AUTO_KEYWORD_MAP: [
@@ -644,10 +652,10 @@ const CONFIG = {
     ['Photoshop', '그림'],
     ['Illustrator', '그림'],
     ['Honeyview', '그림'],
-    ['HncApp', '문서'],
-    ['EXCEL', '문서'],
-    ['WINWORD', '문서'],
-    ['Evernote', '문서'],
+    ['HncApp', 'HWP'],
+    ['EXCEL', 'XLS'],
+    ['WINWORD', 'Word'],
+    ['Evernote', 'EV'],
     ['Cursor', '코딩'],
     ['Code', '코딩'],
     ['Antigravity', '코딩'],
@@ -685,7 +693,7 @@ const CONFIG = {
     ['HncApp', 'HWP'],
     ['EXCEL', 'XLS'],
     ['WINWORD', 'Word'],
-    ['Evernote', 'EN'],
+    ['Evernote', 'EV'],
     ['Cursor', 'Cursor'],
     ['Antigravity', 'AGv'],
     ['Code', 'VSC'],
@@ -764,7 +772,8 @@ const state = {
   hourAlign: {},    // { 'YYYY-MM-DD': { h: 'right' } } — 기본 left, right면 우측정렬
   see: {},
   autoLogs: {},
-  todoAddMode: false,  // PLAN 칸 클릭 → 할일 추가 모드
+  todoAddMode: false,
+  workFocusMode: false,  // PLAN 칸 클릭 → 할일 추가 모드
 };
 
 const fmtDate = (d) => {
@@ -825,7 +834,12 @@ function bindUI() {
   document.getElementById('btn-undo').onclick = () => undoLastAction();
   document.getElementById('btn-sync').onclick = () => syncFromSheets(true);
 
-  // 📋 할일 추가 모드 토글
+  // 🔴 작업 집중 뷰 토글
+  document.getElementById('btn-work-focus').onclick = () => {
+    state.workFocusMode = !state.workFocusMode;
+    document.getElementById('btn-work-focus').classList.toggle('active', state.workFocusMode);
+    render();
+  };
   document.getElementById('btn-todo-add').onclick = () => {
     state.todoAddMode = !state.todoAddMode;
     if (state.todoAddMode) {
@@ -1099,8 +1113,9 @@ function renderDaily() {
           }
         }
         
+        const isWork = segments.some(seg => CONFIG.WORK_CATEGORIES.includes(seg.category));
         const titleAttr = ` title="${escapeAttr(titleParts.join(' / '))}"`;
-        cellHtml = `<div class="pds-cell" data-min="${slotMinStart}" style="background: ${bgGradient};"${titleAttr}>${firstLabel}</div>`;
+        cellHtml = `<div class="pds-cell${isWork ? ' is-work' : ''}" data-min="${slotMinStart}" style="background: ${bgGradient};"${titleAttr}>${firstLabel}</div>`;
       }
       
       html += cellHtml;
@@ -1109,6 +1124,7 @@ function renderDaily() {
   }
   gridEl.innerHTML = html;
   if (state.todoAddMode) gridEl.classList.add('todo-add-mode');
+  if (state.workFocusMode) gridEl.classList.add('work-focus-mode');
 
   bindPaintInteraction();
   bindPlanInputs();
@@ -1708,10 +1724,10 @@ function renderAutoTop3() {
   const byCat = {};
   auto.forEach(a => {
     const k = a.label || a.category;
-    if (!byCat[k]) byCat[k] = 0;
-    byCat[k] += a.endMin - a.startMin;
+    if (!byCat[k]) byCat[k] = { min: 0, appName: a.appName || k };
+    byCat[k].min += a.endMin - a.startMin;
   });
-  const sorted = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+  const sorted = Object.entries(byCat).sort((a, b) => b[1].min - a[1].min);
   const fmt = (m) => `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`;
   const el = document.getElementById('auto-top3');
 
@@ -1726,7 +1742,8 @@ function renderAutoTop3() {
 
   const rowHtml = (items) => items.map(([k, v]) => `
     <div style="display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px;">
-      <span>${escapeHtml(k)}</span><span style="font-weight: 500;">${fmt(v)}</span>
+      <span title="${escapeAttr(v.appName)}">${escapeHtml(v.appName !== k ? v.appName : k)}</span>
+      <span style="font-weight: 500;">${fmt(v.min)}</span>
     </div>
   `).join('');
 
@@ -1811,11 +1828,14 @@ function renderWeekly() {
         bg = CONFIG.CATEGORIES[autoMatch.category] || '#C8DBC8';
         if (autoMatch.startMin === minStart) text = autoMatch.label || '';
       }
-      gridHtml += `<div class="w-cell" style="background: ${bg};">${text}</div>`;
+      const isWork = (manual && CONFIG.WORK_CATEGORIES.includes(manual.category)) ||
+                     (autoMatch && CONFIG.WORK_CATEGORIES.includes(autoMatch.category));
+      gridHtml += `<div class="w-cell${isWork ? ' is-work' : ''}" style="background: ${bg};">${text}</div>`;
     }
     gridHtml += `</div>`;
   }
   document.getElementById('w-grid').innerHTML = gridHtml;
+  if (state.workFocusMode) document.getElementById('w-grid').classList.add('work-focus-mode');
 
   let weekSleep = 0, weekWork = 0, weekDistract = 0;
   let dayCount = 0;
@@ -2372,6 +2392,7 @@ function processLogsRows(rows) {
       endMin: endParts.date === startParts.date ? endParts.gridMin : 1380,
       category: displayCat,
       label,
+      appName: app,  // 원본 앱 이름
     });
   }
 
