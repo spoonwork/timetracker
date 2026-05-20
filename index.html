@@ -172,10 +172,12 @@
     background: rgba(100,200,100,0.08);
   }
   .todo-add-mode .plan-todo-overlay { display: block; }
-  .work-focus-mode .pds-cell { opacity: 0.15; transition: opacity 0.2s; }
-  .work-focus-mode .pds-cell.is-work { opacity: 1; }
-  .work-focus-mode .w-cell { opacity: 0.15; transition: opacity 0.2s; }
-  .work-focus-mode .w-cell.is-work { opacity: 1; }
+  .work-focus-mode .pds-cell { transition: opacity 0.2s; }
+  .work-focus-mode .pds-cell.has-color { opacity: 0.12; }
+  .work-focus-mode .pds-cell.has-color.is-work { opacity: 1; }
+  .work-focus-mode .w-cell { transition: opacity 0.2s; }
+  .work-focus-mode .w-cell.has-color { opacity: 0.12; }
+  .work-focus-mode .w-cell.has-color.is-work { opacity: 1; }
   .todo-add-mode .pds-plan { cursor: pointer; }
   .pds-plan input:disabled { opacity: 1; color: var(--text); background: transparent; cursor: pointer; }
   .plan-cb {
@@ -1117,7 +1119,7 @@ function renderDaily() {
         const manualIsWork = blocks.some(b => b.startMin <= slotMinStart && slotMinStart < b.endMin && CONFIG.WORK_CATEGORIES.includes(b.category));
         const cellIsWork = isWork || manualIsWork;
         const titleAttr = ` title="${escapeAttr(titleParts.join(' / '))}"`;
-        cellHtml = `<div class="pds-cell${cellIsWork ? ' is-work' : ''}" data-min="${slotMinStart}" style="background: ${bgGradient};"${titleAttr}>${firstLabel}</div>`;
+        cellHtml = `<div class="pds-cell has-color${cellIsWork ? ' is-work' : ''}" data-min="${slotMinStart}" style="background: ${bgGradient};"${titleAttr}>${firstLabel}</div>`;
       }
       
       html += cellHtml;
@@ -1850,7 +1852,8 @@ function renderWeekly() {
       }
       const isWork = (manual && CONFIG.WORK_CATEGORIES.includes(manual.category)) ||
                      (autoMatch && CONFIG.WORK_CATEGORIES.includes(autoMatch.category));
-      gridHtml += `<div class="w-cell${isWork ? ' is-work' : ''}" style="background: ${bg};">${text}</div>`;
+      const hasColor = bg !== 'transparent';
+      gridHtml += `<div class="w-cell${hasColor ? ' has-color' : ''}${isWork ? ' is-work' : ''}" style="background: ${bg};">${text}</div>`;
     }
     gridHtml += `</div>`;
   }
