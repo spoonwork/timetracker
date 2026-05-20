@@ -858,7 +858,7 @@ function bindUI() {
 
   document.getElementById('weekly-month-label').onclick = () => switchView('monthly');
 
-  document.querySelectorAll('#palette .swatch:not(#btn-todo-add)').forEach(el => {
+  document.querySelectorAll('#palette .swatch:not(#btn-todo-add):not(#btn-work-focus)').forEach(el => {
     el.onclick = () => {
       const cat = el.dataset.cat;
       if (state.selectedCategory === cat && cat !== '') {
@@ -1114,8 +1114,10 @@ function renderDaily() {
         }
         
         const isWork = segments.some(seg => CONFIG.WORK_CATEGORIES.includes(seg.category));
+        const manualIsWork = blocks.some(b => b.startMin <= slotMinStart && slotMinStart < b.endMin && CONFIG.WORK_CATEGORIES.includes(b.category));
+        const cellIsWork = isWork || manualIsWork;
         const titleAttr = ` title="${escapeAttr(titleParts.join(' / '))}"`;
-        cellHtml = `<div class="pds-cell${isWork ? ' is-work' : ''}" data-min="${slotMinStart}" style="background: ${bgGradient};"${titleAttr}>${firstLabel}</div>`;
+        cellHtml = `<div class="pds-cell${cellIsWork ? ' is-work' : ''}" data-min="${slotMinStart}" style="background: ${bgGradient};"${titleAttr}>${firstLabel}</div>`;
       }
       
       html += cellHtml;
@@ -1722,8 +1724,26 @@ function renderAutoTop3() {
   const ds = fmtDate(state.date);
   const auto = state.autoLogs[ds] || [];
   const byCat = {};
+
+  // chrome / 제목 → LABEL_MAP으로 도메인 추출해서 묶기
+  function resolveDisplayName(a) {
+    const appName = (a.appName || '').toLowerCase();
+    const label = a.label || a.category;
+    // chrome이면 title(appName에 포함된 전체 문자열)로 재매칭
+    if (appName === 'chrome' || label.startsWith('chrome')) {
+      const fullText = (a.appName || '') + ' ' + (a.title || '');
+      for (const [keyword, shortName] of CONFIG.LABEL_MAP) {
+        if (fullText.toLowerCase().includes(keyword.toLowerCase())) {
+          return shortName;
+        }
+      }
+      return 'chrome';
+    }
+    return label;
+  }
+
   auto.forEach(a => {
-    const k = a.label || a.category;
+    const k = resolveDisplayName(a);
     if (!byCat[k]) byCat[k] = { min: 0, appName: a.appName || k };
     byCat[k].min += a.endMin - a.startMin;
   });
@@ -2392,7 +2412,8 @@ function processLogsRows(rows) {
       endMin: endParts.date === startParts.date ? endParts.gridMin : 1380,
       category: displayCat,
       label,
-      appName: app,  // 원본 앱 이름
+      appName: app,
+      title,  // 원본 탭 제목
     });
   }
 
