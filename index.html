@@ -1164,6 +1164,12 @@ function renderDaily() {
                                          b.startMin <= firstSeg.start && 
                                          firstSeg.end <= b.endMin);
           if (orig) { originalStart = orig.startMin; originalEnd = orig.endMin; }
+          // 5시 블록에서 이어진 경우 체크 (slotMinStart=0 = 6시 시작)
+          if (!orig && slotMinStart === 0) {
+            const blocks5 = state.manualBlocks5[ds] || [];
+            const orig5 = blocks5.find(b => b.category === firstSeg.category && b.endMin === 60);
+            if (orig5) { originalStart = -1; } // 5시에서 이어진 것으로 표시
+          }
         } else {
           const orig = auto.find(a => a.label === firstSeg.label && 
                                        a.category === firstSeg.category &&
