@@ -1689,21 +1689,22 @@ function renderStats() {
 
 function calcSleepWindow(date) {
   let total = 0;
+  const startMin = CONFIG.DAY_START_HOUR * 60; // 5시 = 300분
   const yesterday = new Date(date);
   yesterday.setDate(yesterday.getDate() - 1);
   const ydsKey = fmtDate(yesterday);
   const yesterdayBlocks = state.manualBlocks[ydsKey] || [];
   yesterdayBlocks.forEach(b => {
     if (b.category !== '수면') return;
-    const s = Math.max(b.startMin, 720);
-    const e = Math.min(b.endMin, 1380);
+    const s = Math.max(b.startMin, startMin * 2); // 전날 10시 이후
+    const e = Math.min(b.endMin, 1440);
     if (e > s) total += (e - s);
   });
   const todayBlocks = state.manualBlocks[fmtDate(date)] || [];
   todayBlocks.forEach(b => {
     if (b.category !== '수면') return;
     const s = Math.max(b.startMin, 0);
-    const e = Math.min(b.endMin, 720);
+    const e = Math.min(b.endMin, startMin * 2); // 오늘 10시까지
     if (e > s) total += (e - s);
   });
   return total;
