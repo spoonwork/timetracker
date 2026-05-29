@@ -1714,9 +1714,11 @@ function paintCell(cell, isToggle) {
 function mergeAdjacent() {
   const ds = fmtDate(state.date);
   const blocks = state.manualBlocks[ds] || [];
-  blocks.sort((a, b) => a.startMin - b.startMin);
+  // NaN 제거 + 정렬
+  const valid = blocks.filter(b => !isNaN(b.startMin) && !isNaN(b.endMin) && b.endMin > b.startMin);
+  valid.sort((a, b) => a.startMin - b.startMin);
   const merged = [];
-  for (const b of blocks) {
+  for (const b of valid) {
     const last = merged[merged.length - 1];
     if (last && last.endMin === b.startMin && last.category === b.category) {
       last.endMin = b.endMin;
@@ -2188,6 +2190,12 @@ function loadFromLocal() {
       Object.assign(state, obj);
     }
     migrateCategory('취미', '힐링');
+    // NaN 블록 전체 정리
+    Object.keys(state.manualBlocks || {}).forEach(d => {
+      state.manualBlocks[d] = (state.manualBlocks[d] || []).filter(
+        b => !isNaN(b.startMin) && !isNaN(b.endMin) && b.endMin > b.startMin
+      );
+    });
   } catch (e) { console.error(e); }
 }
 
