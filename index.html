@@ -1632,6 +1632,45 @@ function bindPaintInteraction() {
 }
 
 function paintCell(cell, isToggle) {
+  // 5시 칸 별도 처리
+  if (cell.dataset.min5 !== undefined) {
+    const min5 = parseInt(cell.dataset.min5);
+    const ds = fmtDate(state.date);
+    if (!state.manualBlocks5[ds]) state.manualBlocks5[ds] = [];
+    const blocks5 = state.manualBlocks5[ds];
+    const idx = blocks5.findIndex(b => b.startMin <= min5 && min5 < b.endMin);
+    let actualMode = state.paintMode;
+    if (isToggle && state.paintMode === 'add' && idx >= 0 && blocks5[idx].category === state.selectedCategory) {
+      actualMode = 'erase';
+    }
+    if (actualMode === 'erase') {
+      if (idx >= 0) {
+        const b = blocks5[idx];
+        const newBlocks = [];
+        if (b.startMin < min5) newBlocks.push({ ...b, endMin: min5 });
+        if (min5 + 10 < b.endMin) newBlocks.push({ ...b, startMin: min5 + 10 });
+        blocks5.splice(idx, 1, ...newBlocks);
+      }
+      cell.style.background = 'transparent';
+    } else {
+      const cat = state.selectedCategory;
+      if (idx >= 0) {
+        if (blocks5[idx].category === cat) return;
+        const b = blocks5[idx];
+        const newBlocks = [];
+        if (b.startMin < min5) newBlocks.push({ ...b, endMin: min5 });
+        newBlocks.push({ startMin: min5, endMin: min5 + 10, category: cat });
+        if (min5 + 10 < b.endMin) newBlocks.push({ ...b, startMin: min5 + 10 });
+        blocks5.splice(idx, 1, ...newBlocks);
+      } else {
+        blocks5.push({ startMin: min5, endMin: min5 + 10, category: cat });
+      }
+      cell.style.background = CONFIG.CATEGORIES[cat] || '#EEE';
+    }
+    saveToLocal();
+    return;
+  }
+
   const min = parseInt(cell.dataset.min);
   const ds = fmtDate(state.date);
   if (!state.manualBlocks[ds]) state.manualBlocks[ds] = [];
@@ -2129,6 +2168,7 @@ function renderMonthly() {
 function saveToLocal() {
   localStorage.setItem('tt-state', JSON.stringify({
     manualBlocks: state.manualBlocks,
+    manualBlocks5: state.manualBlocks5,
     todos: state.todos,
     hourPlans: state.hourPlans,
     hourMarkers: state.hourMarkers,
@@ -2423,6 +2463,7 @@ async function saveAllAppData() {
     statusEl.textContent = '저장 중...';
     statusEl.classList.remove('error');
     await saveToRemote('manualBlocks', state.manualBlocks);
+    await saveToRemote('manualBlocks5', state.manualBlocks5);
     await saveToRemote('todos', state.todos);
     await saveToRemote('hourPlans', state.hourPlans);
     await saveToRemote('hourMarkers', state.hourMarkers);
@@ -2609,6 +2650,7 @@ function parseSheetTime(val) {
 function applyAppData(appData) {
   if (!appData) return;
   if (appData.manualBlocks) state.manualBlocks = appData.manualBlocks;
+  if (appData.manualBlocks5) state.manualBlocks5 = appData.manualBlocks5;
   if (appData.todos) state.todos = appData.todos;
   if (appData.hourPlans) state.hourPlans = appData.hourPlans;
   if (appData.hourMarkers) state.hourMarkers = appData.hourMarkers;
