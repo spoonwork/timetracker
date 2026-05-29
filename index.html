@@ -742,7 +742,7 @@ const CONFIG = {
     ['instagram', '인스타'],
     ['Instagram', '인스타'],
   ],
-  DAY_START_HOUR: 5,
+  DAY_START_HOUR: 6,
   DAY_END_HOUR: 29,
   SLOTS_PER_HOUR: 6,
 };
@@ -783,6 +783,7 @@ const state = {
   longPressTriggered: false,
   history: [],
   manualBlocks: {},
+  manualBlocks5: {},  // 5시 칸 전용 (기존 min 계산과 완전 분리)
   todos: {},
   hourPlans: {},
   hourMarkers: {},
@@ -995,6 +996,47 @@ function renderDaily() {
 
   const gridEl = document.getElementById('pds-grid');
   let html = '';
+
+  // ── 5시 행 (독립 저장소 manualBlocks5 사용) ──
+  {
+    const h5 = 5;
+    const planText5 = plans[h5] || '';
+    const isChecked5 = (state.hourChecks[ds] || {})[h5] || false;
+    const align5 = (state.hourAlign[ds] || {})[h5] || 'left';
+    const markerData5 = markers[h5];
+    let topCat5 = '', bottomCat5 = '';
+    if (typeof markerData5 === 'string') { topCat5 = markerData5; bottomCat5 = markerData5; }
+    else if (markerData5 && typeof markerData5 === 'object') { topCat5 = markerData5.top || ''; bottomCat5 = markerData5.bottom || ''; }
+    const topBg5 = topCat5 ? (CONFIG.CATEGORIES[topCat5] || 'transparent') : 'transparent';
+    const bottomBg5 = bottomCat5 ? (CONFIG.CATEGORIES[bottomCat5] || 'transparent') : 'transparent';
+
+    const blocks5 = state.manualBlocks5[ds] || [];
+
+    html += `<div class="pds-row">`;
+    html += `<div class="pds-plan">`;
+    html += `<span class="plan-cb ${isChecked5 ? 'checked' : ''}" data-hour="${h5}"></span>`;
+    if (state.todoAddMode) {
+      html += `<div class="plan-input-fake" data-hour="${h5}" style="text-align:${align5}; flex:1; padding:4px 8px; font-size:12px; color:var(--text); cursor:pointer; min-height:18px;">${escapeHtml(planText5)}</div>`;
+    } else {
+      html += `<input type="text" data-hour="${h5}" value="${escapeAttr(planText5)}" placeholder="" style="text-align:${align5};" />`;
+    }
+    html += `<div class="plan-todo-overlay" data-hour="${h5}"></div>`;
+    html += `</div>`;
+    html += `<div class="pds-marker-col">`;
+    html += `  <div class="pds-marker-half pds-marker-top" data-hour="${h5}" data-half="top" style="background: ${topBg5};"></div>`;
+    html += `  <div class="pds-marker-half pds-marker-bottom" data-hour="${h5}" data-half="bottom" style="background: ${bottomBg5};"></div>`;
+    html += `</div>`;
+    html += `<div class="pds-time">5</div>`;
+    html += `<div class="pds-do">`;
+    for (let s = 0; s < CONFIG.SLOTS_PER_HOUR; s++) {
+      const slotMin5 = s * 10; // 0~50 (5시 0분~50분)
+      const block5 = blocks5.find(b => b.startMin <= slotMin5 && slotMin5 < b.endMin);
+      const bg5 = block5 ? (CONFIG.CATEGORIES[block5.category] || '#EEE') : 'transparent';
+      const isWork5 = block5 && CONFIG.WORK_CATEGORIES.includes(block5.category);
+      html += `<div class="pds-cell${block5 ? ' has-color' : ''}${isWork5 ? ' is-work' : ''}" data-min5="${slotMin5}" style="background: ${bg5};"></div>`;
+    }
+    html += `</div></div>`;
+  }
 
   for (let h = CONFIG.DAY_START_HOUR; h <= CONFIG.DAY_END_HOUR - 1; h++) {
     const dispH = h % 24;
@@ -2106,79 +2148,7 @@ function loadFromLocal() {
       Object.assign(state, obj);
     }
     migrateCategory('취미', '힐링');
-    migrateStartHour();
   } catch (e) { console.error(e); }
-}
-
-// 6시→5시 시작 마이그레이션: 오늘 이전 데이터만 60분씩 당기기
-function migrateStartHour() {
-  if (localStorage.getItem('tt-migrated-start5') === '1') return;
-  const today = fmtDate(new Date());
-  let changed = false;
-
-  // manualBlocks — 오늘 이전 날짜만
-  Object.keys(state.manualBlocks || {}).forEach(d => {
-    if (d >= today) return;
-    state.manualBlocks[d].forEach(b => {
-      b.startMin = Math.max(0, b.startMin - 60);
-      b.endMin = Math.max(0, b.endMin - 60);
-    });
-    changed = true;
-  });
-
-  // hourPlans — 오늘 이전 날짜만, 키(시간) 1 감소
-  Object.keys(state.hourPlans || {}).forEach(d => {
-    if (d >= today) return;
-    const newObj = {};
-    Object.keys(state.hourPlans[d]).forEach(h => {
-      const newH = parseInt(h) - 1;
-      if (newH >= 0) newObj[newH] = state.hourPlans[d][h];
-    });
-    state.hourPlans[d] = newObj;
-    changed = true;
-  });
-
-  // hourMarkers
-  Object.keys(state.hourMarkers || {}).forEach(d => {
-    if (d >= today) return;
-    const newObj = {};
-    Object.keys(state.hourMarkers[d]).forEach(h => {
-      const newH = parseInt(h) - 1;
-      if (newH >= 0) newObj[newH] = state.hourMarkers[d][h];
-    });
-    state.hourMarkers[d] = newObj;
-    changed = true;
-  });
-
-  // hourChecks
-  Object.keys(state.hourChecks || {}).forEach(d => {
-    if (d >= today) return;
-    const newObj = {};
-    Object.keys(state.hourChecks[d]).forEach(h => {
-      const newH = parseInt(h) - 1;
-      if (newH >= 0) newObj[newH] = state.hourChecks[d][h];
-    });
-    state.hourChecks[d] = newObj;
-    changed = true;
-  });
-
-  // hourAlign
-  Object.keys(state.hourAlign || {}).forEach(d => {
-    if (d >= today) return;
-    const newObj = {};
-    Object.keys(state.hourAlign[d]).forEach(h => {
-      const newH = parseInt(h) - 1;
-      if (newH >= 0) newObj[newH] = state.hourAlign[d][h];
-    });
-    state.hourAlign[d] = newObj;
-    changed = true;
-  });
-
-  if (changed) {
-    saveToLocal();
-    localStorage.setItem('tt-migrated-start5', '1');
-    console.log('마이그레이션 완료: 과거 데이터 1시간 보정');
-  }
 }
 
 function migrateCategory(oldName, newName) {
