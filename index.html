@@ -623,6 +623,7 @@ const CONFIG = {
     '유튜브': '#962525',
     'SU': '#1C71A9',
     'distraction': '#962525',
+    'distraction_comm': '#AEC0CA',
     'PR': '#545454',
     'XLS': '#42A248',
     'HWP': '#3A8F40',
@@ -693,11 +694,11 @@ const CONFIG = {
     ['x.com', 'distraction'],
     ['instagram', 'distraction'],
     ['Instagram', 'distraction'],
-    ['YULDO', 'distraction'],
-    ['yul-do', 'distraction'],
-    ['dmitory', 'distraction'],
-    ['dcinside', 'distraction'],
-    ['gall.dcinside', 'distraction'],
+    ['YULDO', 'distraction_comm'],
+    ['yul-do', 'distraction_comm'],
+    ['dmitory', 'distraction_comm'],
+    ['dcinside', 'distraction_comm'],
+    ['gall.dcinside', 'distraction_comm'],
   ],
   LABEL_MAP: [
     ['CLIPStudioPaint', 'CSP'],
@@ -720,7 +721,7 @@ const CONFIG = {
     ['gemini', 'Gem'],
     ['Google Docs', 'GDocs'],
     ['Google Drive', 'GDrv'],
-    ['Google Sheets', 'GSht'],
+    ['Google Sheets', 'Sheet'],
     ['KakaoTalk', '카톡'],
     ['ScreenClippingHost', '캡처'],
     ['ShellExperienceHost', '쉘'],
@@ -1655,7 +1656,7 @@ function calcDayStats(date) {
       workMin += a.endMin - a.startMin;
     } else if (CONFIG.TAX_CATEGORIES.includes(a.category)) {
       taxMin += a.endMin - a.startMin;
-    } else if (a.category === 'distraction') {
+    } else if (a.category === 'distraction' || a.category === 'distraction_comm') {
       distractMin += a.endMin - a.startMin;
     }
   });
