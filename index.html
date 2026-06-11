@@ -2480,6 +2480,7 @@ function processLogsRows(rows) {
     }
     byDate[d] = absorbed;
 
+    // 1패스: 연속/1분 이내 gap 머지
     const merged = [];
     for (const seg of byDate[d]) {
       const last = merged[merged.length - 1];
@@ -2487,7 +2488,29 @@ function processLogsRows(rows) {
         last.endMin = Math.max(last.endMin, seg.endMin);
       } else { merged.push({ ...seg }); }
     }
-    byDate[d] = merged;
+    // 2패스: 같은 label끼리 10분 이내 gap이면 사이 조각 무시하고 합침
+    const SAME_LABEL_GAP = 10;
+    let changed = true;
+    let pass = merged;
+    while (changed) {
+      changed = false;
+      let i = 0;
+      while (i < pass.length) {
+        const cur = pass[i];
+        let j = i + 1;
+        while (j < pass.length && pass[j].startMin <= cur.endMin + SAME_LABEL_GAP) {
+          if (pass[j].label === cur.label && pass[j].category === cur.category) {
+            cur.endMin = Math.max(cur.endMin, pass[j].endMin);
+            pass.splice(j, 1);
+            changed = true;
+          } else {
+            j++;
+          }
+        }
+        i++;
+      }
+    }
+    byDate[d] = pass;
 
     const final = [];
     for (let i = 0; i < byDate[d].length; i++) {
