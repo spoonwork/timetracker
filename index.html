@@ -2480,7 +2480,6 @@ function processLogsRows(rows) {
     }
     byDate[d] = absorbed;
 
-    // 1패스: 연속/1분 이내 gap 머지
     const merged = [];
     for (const seg of byDate[d]) {
       const last = merged[merged.length - 1];
@@ -2488,29 +2487,7 @@ function processLogsRows(rows) {
         last.endMin = Math.max(last.endMin, seg.endMin);
       } else { merged.push({ ...seg }); }
     }
-    // 2패스: 같은 label끼리 10분 이내 gap이면 사이 조각 무시하고 합침
-    const SAME_LABEL_GAP = 10;
-    let changed = true;
-    let pass = merged;
-    while (changed) {
-      changed = false;
-      let i = 0;
-      while (i < pass.length) {
-        const cur = pass[i];
-        let j = i + 1;
-        while (j < pass.length && pass[j].startMin <= cur.endMin + SAME_LABEL_GAP) {
-          if (pass[j].label === cur.label && pass[j].category === cur.category) {
-            cur.endMin = Math.max(cur.endMin, pass[j].endMin);
-            pass.splice(j, 1);
-            changed = true;
-          } else {
-            j++;
-          }
-        }
-        i++;
-      }
-    }
-    byDate[d] = pass;
+    byDate[d] = merged;
 
     const final = [];
     for (let i = 0; i < byDate[d].length; i++) {
@@ -2538,18 +2515,19 @@ function parseAnyDateTime(val) {
   else if (val instanceof Date) dt = val;
   else dt = new Date(val);
   if (isNaN(dt.getTime())) return null;
-  return makeDateTimeParts(dt.getFullYear(), dt.getMonth() + 1, dt.getDate(), dt.getHours(), dt.getMinutes());
+  return makeDateTimeParts(dt.getFullYear(), dt.getMonth() + 1, dt.getDate(), dt.getHours(), dt.getMinutes(), dt.getSeconds());
 }
 
-function makeDateTimeParts(y, mo, d, h, mi) {
+function makeDateTimeParts(y, mo, d, h, mi, sec) {
+  sec = sec || 0;
   let gridY = y, gridMo = mo, gridD = d;
   let gridMin;
   if (h < CONFIG.DAY_START_HOUR) {
     const dt = new Date(y, mo - 1, d - 1);
     gridY = dt.getFullYear(); gridMo = dt.getMonth() + 1; gridD = dt.getDate();
-    gridMin = (h + 24 - CONFIG.DAY_START_HOUR) * 60 + mi;
+    gridMin = (h + 24 - CONFIG.DAY_START_HOUR) * 60 + mi + sec / 60;
   } else {
-    gridMin = (h - CONFIG.DAY_START_HOUR) * 60 + mi;
+    gridMin = (h - CONFIG.DAY_START_HOUR) * 60 + mi + sec / 60;
   }
   const dateStr = `${gridY}-${String(gridMo).padStart(2,'0')}-${String(gridD).padStart(2,'0')}`;
   return { date: dateStr, gridMin };
