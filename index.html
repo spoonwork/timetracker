@@ -1781,10 +1781,10 @@ function renderAutoTop3() {
   auto.forEach(a => {
     const k = resolveDisplayName(a);
     if (!byCat[k]) byCat[k] = { min: 0, appName: a.appName || k };
-    byCat[k].min += a.durationSec !== undefined ? a.durationSec / 60 : (a.endMin - a.startMin);
+    byCat[k].min += a.durationSec !== undefined ? a.durationSec : (a.endMin - a.startMin) * 60;
   });
   const sorted = Object.entries(byCat).sort((a, b) => b[1].min - a[1].min);
-  const fmt = (m) => `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`;
+  const fmt = (sec) => { const m = Math.round(sec / 60); return `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`; };
   const el = document.getElementById('auto-top3');
 
   if (!sorted.length) {
