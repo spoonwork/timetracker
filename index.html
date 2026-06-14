@@ -1799,12 +1799,16 @@ function renderAutoTop3() {
   const rest = sorted.slice(3);
   const isExpanded = el.dataset.expanded === '1';
 
-  const rowHtml = (items) => items.map(([k, v]) => `
-    <div style="display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px;">
-      <span title="${escapeAttr(v.appName)}">${escapeHtml(v.appName !== k ? v.appName : k)}</span>
+  const rowHtml = (items) => items.map(([k, v]) => {
+    const color = CONFIG.CATEGORIES[k] || null;
+    const dot = color ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:5px;flex-shrink:0;"></span>` : '';
+    return `
+    <div style="display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; align-items: center;">
+      <span style="display:flex;align-items:center;gap:0;" title="${escapeAttr(v.appName)}">${dot}${escapeHtml(v.appName !== k ? v.appName : k)}</span>
       <span style="font-weight: 500;">${fmt(v.min)}</span>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   el.innerHTML = rowHtml(top3) +
     (rest.length ? `
