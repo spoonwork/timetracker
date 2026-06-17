@@ -18,7 +18,8 @@
     --c-sleep: #C1C1C1;
     --c-meal: #FDF6C8;
     --c-exercise: #FDF89A;
-    --c-out: #DCC8E0;
+    --c-move: #5BB8E8;
+  --c-out: #DCC8E0;
     --c-hospital: #F0C8C8;
     --c-work: #E85A5A;
     --c-3d: #E56161;
@@ -501,6 +502,7 @@
             <div class="swatch" data-cat="수면" style="background: var(--c-sleep);">수면</div>
             <div class="swatch" data-cat="식사" style="background: var(--c-meal);">식사</div>
             <div class="swatch" data-cat="운동" style="background: var(--c-exercise);">운동</div>
+            <div class="swatch" data-cat="이동" style="background: var(--c-move);">이동</div>
             <div class="swatch" data-cat="외출" style="background: var(--c-out);">외출</div>
             <div class="swatch" data-cat="병원" style="background: var(--c-hospital);">병원</div>
             <div class="swatch" data-cat="힐링" style="background: var(--c-hobby);">힐링</div>
@@ -632,6 +634,7 @@ const CONFIG = {
     '식사': '#FDF6C8',
     '수면': '#C1C1C1',
     '운동': '#FDF89A',
+    '이동': '#5BB8E8',
     '외출': '#DCC8E0',
     '병원': '#F0C8C8',
     '출근': '#DDE5C8',
@@ -1783,7 +1786,7 @@ function renderAutoTop3() {
 
   auto.forEach(a => {
     const k = resolveDisplayName(a);
-    if (!byCat[k]) byCat[k] = { min: 0, appName: a.appName || k };
+    if (!byCat[k]) byCat[k] = { min: 0, appName: a.appName || k, category: a.category };
     byCat[k].min += a.durationSec !== undefined ? a.durationSec : (a.endMin - a.startMin) * 60;
   });
   const sorted = Object.entries(byCat).sort((a, b) => b[1].min - a[1].min);
@@ -1800,7 +1803,7 @@ function renderAutoTop3() {
   const isExpanded = el.dataset.expanded === '1';
 
   const rowHtml = (items) => items.map(([k, v]) => {
-    const color = CONFIG.CATEGORIES[k] || null;
+    const color = CONFIG.CATEGORIES[v.category] || CONFIG.CATEGORIES[k] || null;
     const dot = color ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:5px;flex-shrink:0;"></span>` : '';
     return `
     <div style="display: flex; justify-content: space-between; padding: 3px 0; font-size: 12px; align-items: center;">
