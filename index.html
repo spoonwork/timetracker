@@ -188,6 +188,7 @@
     transition: background 0.1s;
   }
   .plan-cb.checked { background: var(--text); border-color: var(--text); }
+  .plan-cb.checked ~ input, .plan-cb.checked ~ .plan-input-fake { text-decoration: line-through; opacity: 0.45; }
   .plan-cb.checked::after {
     content: '✓'; position: absolute; top: -3px; left: 1px;
     color: var(--bg); font-size: 11px; line-height: 1;
