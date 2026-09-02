@@ -655,7 +655,7 @@ const CONFIG = {
     '세무': '#D5B3BA',
   },
   WORK_TYPE: {
-    conti:    { label: '콘티',   emoji: '📝', color: '#7B9ED9' },
+    conti:    { label: '콘티/지시', emoji: '📝', color: '#7B9ED9' },
     sketch:   { label: '선따기', emoji: '✏️',  color: '#E8A87C' },
     color:    { label: '채색',   emoji: '🎨', color: '#A8D8A8' },
     deadline: { label: '마감',   emoji: '🔥', color: '#E07070' },
@@ -974,11 +974,11 @@ function render() {
     const lunar = getLunarDate(d);
     document.getElementById('header-label').textContent = dayNameEn(d);
     const ds0 = fmtDate(d);
-    const wt0 = state.workTypes[ds0];
-    const wtCfg0 = wt0 ? CONFIG.WORK_TYPE[wt0] : null;
-    const wtBadge0 = wtCfg0 ? ` <span style="font-size:13px;">${wtCfg0.emoji}</span>` : '';
+    let wt0 = state.workTypes[ds0] || [];
+    if (typeof wt0 === 'string') wt0 = wt0 ? [wt0] : [];
+    const wtBadge0 = wt0.map(k => CONFIG.WORK_TYPE[k]?.emoji || '').join('');
     document.getElementById('header-title').innerHTML = 
-      `${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일${wtBadge0} <span class="saju-info">${saju.year}年 ${saju.month}月 ${saju.day}日 · ${lunar.text}</span>`;
+      `${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일${wtBadge0 ? ' ' + wtBadge0 : ''} <span class="saju-info">${saju.year}年 ${saju.month}月 ${saju.day}日 · ${lunar.text}</span>`;
     updateWorkTypePalette();
     renderDaily();
   } else if (state.view === 'weekly') {
@@ -1878,10 +1878,12 @@ function renderWeekly() {
     
     const tipText = (holiday ? holiday + ' / ' : '') + dayGanji.text + '日 / 음 ' + lunar.month + '.' + lunar.day;
     const titleAttr = ` title="${escapeAttr(tipText)}"`;
-    const wtW = state.workTypes[fmtDate(dt)];
-    const wtCfgW = wtW ? CONFIG.WORK_TYPE[wtW] : null;
-    const wtDotW = wtCfgW ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${wtCfgW.color};margin-left:4px;vertical-align:middle;" title="${wtCfgW.label}"></span>` : '';
-    headerHtml += `<div class="${dayCls}" data-date="${fmtDate(dt)}"${titleAttr} style="${wtCfgW ? `border-bottom: 2px solid ${wtCfgW.color};` : ''}">${dayName(dt)} <span class="${numCls}">${dt.getDate()}</span>${wtDotW}<br><span class="w-ganji">${dayGanji.text}</span></div>`;
+    let wtW = state.workTypes[fmtDate(dt)] || [];
+    if (typeof wtW === 'string') wtW = wtW ? [wtW] : [];
+    const wtCfgsW = wtW.map(k => CONFIG.WORK_TYPE[k]).filter(Boolean);
+    const wtDotsW = wtCfgsW.map(c => `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${c.color};margin-left:2px;vertical-align:middle;" title="${c.label}"></span>`).join('');
+    const wtBorderW = wtCfgsW.length ? `border-bottom: 2px solid ${wtCfgsW[0].color};` : '';
+    headerHtml += `<div class="${dayCls}" data-date="${fmtDate(dt)}"${titleAttr} style="${wtBorderW}">${dayName(dt)} <span class="${numCls}">${dt.getDate()}</span>${wtDotsW}<br><span class="w-ganji">${dayGanji.text}</span></div>`;
   }
   document.getElementById('w-header').innerHTML = headerHtml;
 
@@ -2052,12 +2054,14 @@ function renderMonthly() {
     const tipText = (holiday ? holiday + ' / ' : '') + dayGanji.text + '日 / 음 ' + lunar.month + '.' + lunar.day;
     const holidayTip = ` title="${escapeAttr(tipText)}"`;
     
-    const wtM = state.workTypes[dateStr];
-    const wtCfgM = wtM ? CONFIG.WORK_TYPE[wtM] : null;
-    const wtBorderM = wtCfgM ? `border-top: 3px solid ${wtCfgM.color};` : '';
+    let wtM = state.workTypes[dateStr] || [];
+    if (typeof wtM === 'string') wtM = wtM ? [wtM] : [];
+    const wtCfgsM = wtM.map(k => CONFIG.WORK_TYPE[k]).filter(Boolean);
+    const wtBorderM = wtCfgsM.length ? `border-top: 3px solid ${wtCfgsM[0].color};` : '';
     let dayHtml = `<div class="m-day${todayClass}" data-date="${dateStr}"${holidayTip} style="${wtBorderM}">`;
-    const wtEmojiM = wtCfgM ? `<span style="float:right;font-size:11px;" title="${wtCfgM.label}">${wtCfgM.emoji}</span>` : '';
-    dayHtml += `<div class="m-date ${dateClass}">${dt}<span class="m-ganji">${dayGanji.text}</span>${wtEmojiM}</div>`;
+    const wtEmojiM = wtCfgsM.map(c => `<span style="font-size:10px;" title="${c.label}">${c.emoji}</span>`).join('');
+    const wtEmojiWrapM = wtEmojiM ? `<span style="float:right;">${wtEmojiM}</span>` : '';
+    dayHtml += `<div class="m-date ${dateClass}">${dt}<span class="m-ganji">${dayGanji.text}</span>${wtEmojiWrapM}</div>`;
     if (!isFuture && (stats.workMin > 0 || stats.taxMin > 0 || stats.sleepMin > 0)) {
       dayHtml += `<div class="m-bars">`;
       if (stats.workMin > 0) dayHtml += `<div class="m-bar" style="width: ${workPct}%;"></div>`;
@@ -2636,11 +2640,12 @@ function updateWorkTypePalette() {
   const bar = document.getElementById('work-type-bar');
   if (!bar) return;
   const ds = fmtDate(state.date);
-  const current = state.workTypes[ds];
-  // daily 뷰에서만 표시
+  // 배열로 통일 (기존 문자열 호환)
+  let current = state.workTypes[ds] || [];
+  if (typeof current === 'string') current = current ? [current] : [];
   bar.style.display = state.view === 'daily' ? 'flex' : 'none';
   bar.innerHTML = Object.entries(CONFIG.WORK_TYPE).map(([key, cfg]) => {
-    const active = key === current;
+    const active = current.includes(key);
     return `<span class="wt-btn" data-wt="${key}" style="
       font-size:11px;padding:2px 8px;border-radius:10px;cursor:pointer;
       border:1px solid ${cfg.color};
@@ -2654,11 +2659,20 @@ function updateWorkTypePalette() {
     el.addEventListener('click', async (e) => {
       e.stopPropagation();
       const wt = el.dataset.wt;
-      if (wt === '') { delete state.workTypes[ds]; } else { state.workTypes[ds] = wt; }
+      let arr = state.workTypes[ds] || [];
+      if (typeof arr === 'string') arr = arr ? [arr] : [];
+      if (wt === '') {
+        arr = [];
+      } else if (arr.includes(wt)) {
+        arr = arr.filter(x => x !== wt); // 토글 off
+      } else {
+        arr = [...arr, wt]; // 토글 on
+      }
+      if (arr.length === 0) { delete state.workTypes[ds]; } else { state.workTypes[ds] = arr; }
       updateWorkTypePalette();
       render();
       scheduleRemoteSave();
-      try { await saveWorkTypeToSheet(ds, wt || ''); } catch(err) {}
+      try { await saveWorkTypeToSheet(ds, arr.join(',')); } catch(err) {}
     });
   });
 }
