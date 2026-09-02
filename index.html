@@ -974,7 +974,7 @@ function render() {
     const ds0 = fmtDate(d);
     const wt0 = state.workTypes[ds0];
     const wtCfg0 = wt0 ? CONFIG.WORK_TYPE[wt0] : null;
-    const wtBadge0 = wtCfg0 ? `<span id="work-type-badge" style="margin-left:10px;font-size:13px;background:${wtCfg0.color}22;border:1px solid ${wtCfg0.color};color:${wtCfg0.color};border-radius:10px;padding:1px 8px;cursor:pointer;vertical-align:middle;" onclick="openWorkTypePicker()">${wtCfg0.emoji} ${wtCfg0.label}</span>` : `<span id="work-type-badge" style="margin-left:10px;font-size:12px;color:var(--text-muted);cursor:pointer;vertical-align:middle;" onclick="openWorkTypePicker()">+ 작업유형</span>`;
+    const wtBadge0 = wtCfg0 ? `<span id="work-type-badge" style="margin-left:10px;font-size:13px;background:${wtCfg0.color}22;border:1px solid ${wtCfg0.color};color:${wtCfg0.color};border-radius:10px;padding:1px 8px;cursor:pointer;vertical-align:middle;" onclick="event.stopPropagation();openWorkTypePicker()">${wtCfg0.emoji} ${wtCfg0.label}</span>` : `<span id="work-type-badge" style="margin-left:10px;font-size:12px;color:var(--text-muted);cursor:pointer;vertical-align:middle;" onclick="event.stopPropagation();openWorkTypePicker()">+ 작업유형</span>`;
     document.getElementById('header-title').innerHTML = 
       `${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일 <span class="saju-info">${saju.year}年 ${saju.month}月 ${saju.day}日 · ${lunar.text}</span>${wtBadge0}`;
     renderDaily();
