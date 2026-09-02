@@ -817,7 +817,8 @@ const fmtDate = (d) => {
   return `${y}-${m}-${dd}`;
 };
 const dayName = (d) => ['일','월','화','수','목','금','토'][d.getDay()];
-const dayNameEn = (d) => ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'][d.getDay()];
+const DAY_KO = ['일요일','월요일','화요일','수요일','목요일','금요일','토요일'];
+const dayNameEn = (d) => ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'][d.getDay()] + ' · ' + DAY_KO[d.getDay()];
 
 const pinInput = document.getElementById('pin-input');
 const pinError = document.getElementById('pin-error');
@@ -2659,7 +2660,7 @@ async function saveWorkType(type) {
     state.workTypes[ds] = type;
   }
   closeWorkTypePicker();
-  renderHeader();
+  render();
   scheduleRemoteSave();
   // work_type 시트에도 직접 저장
   try {
