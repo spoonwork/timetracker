@@ -472,6 +472,7 @@
     <div>
       <span class="label" id="header-label"></span>
       <h2 id="header-title" class="clickable"></h2>
+      <div id="work-type-bar" style="display:none;margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;"></div>
     </div>
     <div class="view-tabs">
       <button id="tab-monthly">먼슬리</button>
@@ -513,6 +514,7 @@
             <div class="swatch todo-add-btn" id="btn-todo-add">📋</div>
             <div class="swatch" id="btn-work-focus" title="작업 집중 뷰">🔴</div>
           </div>
+
         </div>
         <div class="pds-grid-header">
           <div>PLAN</div><div></div><div class="h-time">시간</div><div>DO</div>
@@ -974,9 +976,10 @@ function render() {
     const ds0 = fmtDate(d);
     const wt0 = state.workTypes[ds0];
     const wtCfg0 = wt0 ? CONFIG.WORK_TYPE[wt0] : null;
-    const wtBadge0 = wtCfg0 ? `<span id="work-type-badge" style="margin-left:10px;font-size:13px;background:${wtCfg0.color}22;border:1px solid ${wtCfg0.color};color:${wtCfg0.color};border-radius:10px;padding:1px 8px;cursor:pointer;vertical-align:middle;" onclick="event.stopPropagation();openWorkTypePicker()">${wtCfg0.emoji} ${wtCfg0.label}</span>` : `<span id="work-type-badge" style="margin-left:10px;font-size:12px;color:var(--text-muted);cursor:pointer;vertical-align:middle;" onclick="event.stopPropagation();openWorkTypePicker()">+ 작업유형</span>`;
+    const wtBadge0 = wtCfg0 ? ` <span style="font-size:13px;">${wtCfg0.emoji}</span>` : '';
     document.getElementById('header-title').innerHTML = 
-      `${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일 <span class="saju-info">${saju.year}年 ${saju.month}月 ${saju.day}日 · ${lunar.text}</span>${wtBadge0}`;
+      `${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일${wtBadge0} <span class="saju-info">${saju.year}年 ${saju.month}月 ${saju.day}日 · ${lunar.text}</span>`;
+    updateWorkTypePalette();
     renderDaily();
   } else if (state.view === 'weekly') {
     const weekStart = new Date(d);
@@ -2629,6 +2632,37 @@ function applyAppData(appData) {
 }
 
 // ===== Work Type =====
+function updateWorkTypePalette() {
+  const bar = document.getElementById('work-type-bar');
+  if (!bar) return;
+  const ds = fmtDate(state.date);
+  const current = state.workTypes[ds];
+  // daily 뷰에서만 표시
+  bar.style.display = state.view === 'daily' ? 'flex' : 'none';
+  bar.innerHTML = Object.entries(CONFIG.WORK_TYPE).map(([key, cfg]) => {
+    const active = key === current;
+    return `<span class="wt-btn" data-wt="${key}" style="
+      font-size:11px;padding:2px 8px;border-radius:10px;cursor:pointer;
+      border:1px solid ${cfg.color};
+      background:${active ? cfg.color + '44' : cfg.color + '11'};
+      color:${cfg.color};
+      font-weight:${active ? '700' : '400'};
+      box-shadow:${active ? '0 0 0 1px ' + cfg.color : 'none'};
+    ">${cfg.emoji} ${cfg.label}</span>`;
+  }).join('') + `<span class="wt-btn" data-wt="" style="font-size:11px;padding:2px 8px;border-radius:10px;cursor:pointer;border:1px solid var(--line);color:var(--text-muted);">✕</span>`;
+  bar.querySelectorAll('.wt-btn').forEach(el => {
+    el.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const wt = el.dataset.wt;
+      if (wt === '') { delete state.workTypes[ds]; } else { state.workTypes[ds] = wt; }
+      updateWorkTypePalette();
+      render();
+      scheduleRemoteSave();
+      try { await saveWorkTypeToSheet(ds, wt || ''); } catch(err) {}
+    });
+  });
+}
+
 function openWorkTypePicker() {
   const modal = document.getElementById('work-type-modal');
   const opts = document.getElementById('work-type-options');
@@ -2661,6 +2695,7 @@ async function saveWorkType(type) {
   }
   closeWorkTypePicker();
   render();
+  updateWorkTypePalette();
   scheduleRemoteSave();
   // work_type 시트에도 직접 저장
   try {
