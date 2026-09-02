@@ -652,6 +652,13 @@ const CONFIG = {
     '문서': '#CE776D',
     '세무': '#D5B3BA',
   },
+  WORK_TYPE: {
+    conti:    { label: '콘티',   emoji: '📝', color: '#7B9ED9' },
+    sketch:   { label: '선따기', emoji: '✏️',  color: '#E8A87C' },
+    color:    { label: '채색',   emoji: '🎨', color: '#A8D8A8' },
+    deadline: { label: '마감',   emoji: '🔥', color: '#E07070' },
+    rest:     { label: '휴식',   emoji: '😴', color: '#C8C8C8' },
+  },
   WORK_CATEGORIES: ['작업', '그림', '3D', '3D배경', 'AI', '코딩', '문서', 'XLS', 'HWP', 'Word', 'EV', '카톡'],
   TAX_CATEGORIES: ['세무'],
   SLEEP_CATEGORIES: ['수면'],
@@ -798,6 +805,7 @@ const state = {
   hourAlign: {},    // { 'YYYY-MM-DD': { h: 'right' } } — 기본 left, right면 우측정렬
   see: {},
   autoLogs: {},
+  workTypes: {}, // { 'YYYY-MM-DD': 'conti'|'sketch'|'color'|'deadline'|'rest' }
   todoAddMode: false,
   workFocusMode: false,  // PLAN 칸 클릭 → 할일 추가 모드
 };
@@ -962,8 +970,12 @@ function render() {
     const saju = getSajuText(d);
     const lunar = getLunarDate(d);
     document.getElementById('header-label').textContent = dayNameEn(d);
+    const ds0 = fmtDate(d);
+    const wt0 = state.workTypes[ds0];
+    const wtCfg0 = wt0 ? CONFIG.WORK_TYPE[wt0] : null;
+    const wtBadge0 = wtCfg0 ? `<span id="work-type-badge" style="margin-left:10px;font-size:13px;background:${wtCfg0.color}22;border:1px solid ${wtCfg0.color};color:${wtCfg0.color};border-radius:10px;padding:1px 8px;cursor:pointer;vertical-align:middle;" onclick="openWorkTypePicker()">${wtCfg0.emoji} ${wtCfg0.label}</span>` : `<span id="work-type-badge" style="margin-left:10px;font-size:12px;color:var(--text-muted);cursor:pointer;vertical-align:middle;" onclick="openWorkTypePicker()">+ 작업유형</span>`;
     document.getElementById('header-title').innerHTML = 
-      `${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일 <span class="saju-info">${saju.year}年 ${saju.month}月 ${saju.day}日 · ${lunar.text}</span>`;
+      `${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일 <span class="saju-info">${saju.year}年 ${saju.month}月 ${saju.day}日 · ${lunar.text}</span>${wtBadge0}`;
     renderDaily();
   } else if (state.view === 'weekly') {
     const weekStart = new Date(d);
@@ -1862,7 +1874,10 @@ function renderWeekly() {
     
     const tipText = (holiday ? holiday + ' / ' : '') + dayGanji.text + '日 / 음 ' + lunar.month + '.' + lunar.day;
     const titleAttr = ` title="${escapeAttr(tipText)}"`;
-    headerHtml += `<div class="${dayCls}" data-date="${fmtDate(dt)}"${titleAttr}>${dayName(dt)} <span class="${numCls}">${dt.getDate()}</span><br><span class="w-ganji">${dayGanji.text}</span></div>`;
+    const wtW = state.workTypes[fmtDate(dt)];
+    const wtCfgW = wtW ? CONFIG.WORK_TYPE[wtW] : null;
+    const wtDotW = wtCfgW ? `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${wtCfgW.color};margin-left:4px;vertical-align:middle;" title="${wtCfgW.label}"></span>` : '';
+    headerHtml += `<div class="${dayCls}" data-date="${fmtDate(dt)}"${titleAttr} style="${wtCfgW ? `border-bottom: 2px solid ${wtCfgW.color};` : ''}">${dayName(dt)} <span class="${numCls}">${dt.getDate()}</span>${wtDotW}<br><span class="w-ganji">${dayGanji.text}</span></div>`;
   }
   document.getElementById('w-header').innerHTML = headerHtml;
 
@@ -2033,8 +2048,12 @@ function renderMonthly() {
     const tipText = (holiday ? holiday + ' / ' : '') + dayGanji.text + '日 / 음 ' + lunar.month + '.' + lunar.day;
     const holidayTip = ` title="${escapeAttr(tipText)}"`;
     
-    let dayHtml = `<div class="m-day${todayClass}" data-date="${dateStr}"${holidayTip}>`;
-    dayHtml += `<div class="m-date ${dateClass}">${dt}<span class="m-ganji">${dayGanji.text}</span></div>`;
+    const wtM = state.workTypes[dateStr];
+    const wtCfgM = wtM ? CONFIG.WORK_TYPE[wtM] : null;
+    const wtBorderM = wtCfgM ? `border-top: 3px solid ${wtCfgM.color};` : '';
+    let dayHtml = `<div class="m-day${todayClass}" data-date="${dateStr}"${holidayTip} style="${wtBorderM}">`;
+    const wtEmojiM = wtCfgM ? `<span style="float:right;font-size:11px;" title="${wtCfgM.label}">${wtCfgM.emoji}</span>` : '';
+    dayHtml += `<div class="m-date ${dateClass}">${dt}<span class="m-ganji">${dayGanji.text}</span>${wtEmojiM}</div>`;
     if (!isFuture && (stats.workMin > 0 || stats.taxMin > 0 || stats.sleepMin > 0)) {
       dayHtml += `<div class="m-bars">`;
       if (stats.workMin > 0) dayHtml += `<div class="m-bar" style="width: ${workPct}%;"></div>`;
@@ -2409,6 +2428,7 @@ async function saveAllAppData() {
     await saveToRemote('hourChecks', state.hourChecks);
     await saveToRemote('hourAlign', state.hourAlign);
     await saveToRemote('see', state.see);
+    await saveToRemote('workTypes', state.workTypes);
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     statusEl.textContent = `저장됨 (${timeStr})`;
@@ -2603,8 +2623,65 @@ function applyAppData(appData) {
   if (appData.hourChecks) state.hourChecks = appData.hourChecks;
   if (appData.hourAlign) state.hourAlign = appData.hourAlign;
   if (appData.see) state.see = appData.see;
+  if (appData.workTypes) state.workTypes = appData.workTypes;
   migrateCategory('취미', '힐링');
 }
+
+// ===== Work Type =====
+function openWorkTypePicker() {
+  const modal = document.getElementById('work-type-modal');
+  const opts = document.getElementById('work-type-options');
+  const ds = fmtDate(state.date);
+  const current = state.workTypes[ds];
+  opts.innerHTML = Object.entries(CONFIG.WORK_TYPE).map(([key, cfg]) => `
+    <button onclick="saveWorkType('${key}')" style="
+      display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;
+      border:1px solid ${key === current ? cfg.color : 'var(--line)'};
+      background:${key === current ? cfg.color + '22' : 'transparent'};
+      color:var(--text);cursor:pointer;font-size:13px;text-align:left;width:100%;
+    ">
+      <span style="font-size:18px;">${cfg.emoji}</span>
+      <span style="font-weight:${key === current ? '600' : '400'};">${cfg.label}</span>
+    </button>
+  `).join('');
+  modal.style.display = 'flex';
+}
+
+function closeWorkTypePicker() {
+  document.getElementById('work-type-modal').style.display = 'none';
+}
+
+async function saveWorkType(type) {
+  const ds = fmtDate(state.date);
+  if (type === null) {
+    delete state.workTypes[ds];
+  } else {
+    state.workTypes[ds] = type;
+  }
+  closeWorkTypePicker();
+  renderHeader();
+  scheduleRemoteSave();
+  // work_type 시트에도 직접 저장
+  try {
+    await saveWorkTypeToSheet(ds, type);
+  } catch(e) { console.warn('work_type sheet save failed:', e); }
+}
+
+async function saveWorkTypeToSheet(date, type) {
+  const url = CONFIG.APPS_SCRIPT_URL;
+  await fetch(url, {
+    method: 'POST',
+    redirect: 'follow',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'setWorkType', date, type: type || '' }),
+  });
+}
+
+// 모달 바깥 클릭 시 닫기
+document.addEventListener('click', (e) => {
+  const modal = document.getElementById('work-type-modal');
+  if (modal && modal.style.display === 'flex' && e.target === modal) closeWorkTypePicker();
+});
 
 async function syncFromSheets(manual = false) {
   if (isSyncing) return;
@@ -2617,6 +2694,12 @@ async function syncFromSheets(manual = false) {
 
     const data = await fetchAllData();
     state.autoLogs = processLogsRows(data.logs || []);
+    // work_type 탭 로드
+    if (data.workTypes) {
+      data.workTypes.forEach(row => {
+        if (row[0] && row[1]) state.workTypes[row[0]] = row[1];
+      });
+    }
     const sheetManual = processManualSheetRows(data.manual || []);
     applyAppData(data.appData || {});
 
@@ -2643,5 +2726,18 @@ async function syncFromSheets(manual = false) {
   }
 }
 </script>
+
+<!-- Work Type Picker Modal -->
+<div id="work-type-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--bg);border-radius:12px;padding:20px;min-width:240px;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;letter-spacing:1px;">작업 유형 선택</div>
+    <div id="work-type-options" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <div style="margin-top:14px;display:flex;gap:8px;">
+      <button onclick="saveWorkType(null)" style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--text-muted);cursor:pointer;font-size:12px;">없음</button>
+      <button onclick="closeWorkTypePicker()" style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--text);cursor:pointer;font-size:12px;">취소</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
