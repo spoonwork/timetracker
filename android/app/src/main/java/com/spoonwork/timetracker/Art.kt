@@ -37,6 +37,8 @@ object Art {
     var lastTodos: List<JSONObject> = emptyList()
     var lastItems: List<Item> = emptyList()
     var lastRows = 0
+    /** 스프레드 할 일 체크박스 위치 (머리말 그림 px): 줄마다 [시작, 끝] */
+    var lastBoxX: MutableMap<Int, Pair<Float, Float>> = mutableMapOf()
 
     /** 사용자 설정: 글자색(없으면 자동), 글자 크기 배율 */
     var textOverride: Int? = null
@@ -340,7 +342,8 @@ object Art {
             pad + 26 * u, colTop, p)
         p.textSize = 10 * u * fs
         var y = colTop + lineH
-        list.take(maxLines).forEach { t ->
+        lastBoxX = mutableMapOf()
+        list.take(maxLines).forEachIndexed { idx, t ->
             val d = t.optBoolean("done")
             val isWt = t.optBoolean("_wt")
             var x = pad
@@ -352,13 +355,15 @@ object Art {
             }
             val box = if (d) "☑" else "☐"
             if (isWt) {
-                // 스프레드 것: 글자 먼저, 체크박스는 칸 오른쪽 끝에
-                p.color = SHEET_CHECK
+                // 스프레드 것: 글자 바로 뒤에 체크박스
                 val bw = p.measureText(box)
-                val bx = half - 6 * u - bw
-                c.drawText(box, bx, y, p)
                 p.color = if (d) sub else main
-                c.drawText(fit(p, t.optString("text"), bx - x - 4 * u), x, y, p)
+                val shown = fit(p, t.optString("text"), half - x - bw - 12 * u)
+                c.drawText(shown, x, y, p)
+                val bx = x + p.measureText(shown) + 5 * u
+                p.color = SHEET_CHECK
+                c.drawText(box, bx, y, p)
+                lastBoxX[idx] = Pair(bx - 3 * u, bx + bw + 3 * u)
             } else {
                 p.color = if (d) sub else main
                 c.drawText("$box ", x, y, p)

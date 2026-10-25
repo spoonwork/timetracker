@@ -39,6 +39,11 @@ class TrackerWidget : AppWidgetProvider() {
                 render(context)
                 refresh(context)       // 그 달 기록 받아오기
             }
+            ACTION_TOGGLE_WT -> {
+                val pr = Data.prefs(context)
+                pr.edit().putBoolean("cal_wt", !pr.getBoolean("cal_wt", true)).apply()
+                render(context)
+            }
             ACTION_PICK -> {
                 // 달력에서 날짜 누름 → 이 위젯을 그 날 데일리로
                 val wid = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
@@ -74,6 +79,7 @@ class TrackerWidget : AppWidgetProvider() {
         const val ACTION_NEXT_VIEW = "com.spoonwork.timetracker.NEXT_VIEW"
         const val ACTION_SHIFT = "com.spoonwork.timetracker.SHIFT"
         const val ACTION_PICK = "com.spoonwork.timetracker.PICK"
+        const val ACTION_TOGGLE_WT = "com.spoonwork.timetracker.TOGGLE_WT"
 
         /** 시트에서 오늘 요약을 받아와 위젯 다시 그림 (네트워크 보장되는 작업으로 실행) */
         fun refresh(context: Context, pending: PendingResult? = null) {
@@ -344,9 +350,24 @@ class TrackerWidget : AppWidgetProvider() {
                             Intent(context, TrackerWidget::class.java).setAction(ACTION_PICK)
                                 .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).putExtra("day", today),
                             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-                        rv.setOnClickPendingIntent(la, if (wt) daily else toggle)
-                        rv.setOnClickPendingIntent(lb, daily)
-                        rv.setOnClickPendingIntent(lc, if (wt) toggle else daily)
+                        val box = Art.lastBoxX[r - 1]
+                        if (wt && box != null && android.os.Build.VERSION.SDK_INT >= 31) {
+                            // 스프레드 것: [글자 → 데일리][체크박스 → 체크][나머지 → 데일리]
+                            val toDp = 1f / scale
+                            rv.setViewLayoutWidth(la, box.first * toDp, android.util.TypedValue.COMPLEX_UNIT_DIP)
+                            rv.setViewLayoutWidth(lb, (box.second - box.first) * toDp, android.util.TypedValue.COMPLEX_UNIT_DIP)
+                            rv.setOnClickPendingIntent(la, daily)
+                            rv.setOnClickPendingIntent(lb, toggle)
+                            rv.setOnClickPendingIntent(lc, daily)
+                        } else {
+                            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                                rv.setViewLayoutWidth(la, 36f, android.util.TypedValue.COMPLEX_UNIT_DIP)
+                                rv.setViewLayoutWidth(lb, 0f, android.util.TypedValue.COMPLEX_UNIT_DIP)
+                            }
+                            rv.setOnClickPendingIntent(la, if (wt) daily else toggle)
+                            rv.setOnClickPendingIntent(lb, if (wt) toggle else daily)
+                            rv.setOnClickPendingIntent(lc, if (wt) toggle else daily)
+                        }
                     }
                     val it = Art.lastItems.getOrNull(r - 1)
                     if (it != null) {
@@ -412,6 +433,13 @@ class TrackerWidget : AppWidgetProvider() {
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
             }
             rv.setTextColor(R.id.btn_add, if (light) Color.WHITE else Color.parseColor("#6B7280"))
+            // 슾 아이콘: 달력에 스프레드 할 일 보이기 켜기/끄기
+            val wtOn = prefs.getBoolean("cal_wt", true)
+            rv.setInt(R.id.btn_wt, "setBackgroundResource", if (wtOn) R.drawable.sheet_on else R.drawable.sheet_off)
+            rv.setTextColor(R.id.btn_wt, if (wtOn) Color.WHITE else Color.parseColor("#9CA3AF"))
+            rv.setOnClickPendingIntent(R.id.btn_wt, PendingIntent.getBroadcast(context, 6000 + (id % 1000),
+                Intent(context, TrackerWidget::class.java).setAction(ACTION_TOGGLE_WT),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
             rv.setOnClickPendingIntent(R.id.btn_add, quick(context, "plan", 6))
         }
 
