@@ -294,6 +294,11 @@ function buildWidgetSummary(ss, date, fromDs, toDs) {
     const sl = sleepForDay(mb, d);
     if (sl) item.s = sl;
     if (hp[d] && Object.keys(hp[d]).length) item.p = hp[d];
+    const td = (app.todos || {})[d];
+    if (td && td.length) item.t = td;
+    if (mb[d] && mb[d].length) item.b = mb[d];
+    const hc = (app.hourChecks || {})[d];
+    if (hc && Object.keys(hc).length) item.c = hc;
     days[d] = item;
   }
 

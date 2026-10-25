@@ -64,6 +64,9 @@ object Data {
     fun fontScale(c: Context): Float = prefs(c).getInt("font_pct", 100) / 100f
     fun clockSize(c: Context): Int = prefs(c).getInt("clock_sp", 66)
 
+    /** 달력에서 눌러 들어온 날짜 (없으면 오늘) */
+    fun selDay(c: Context, id: Int): String? = prefs(c).getString("sel_$id", null)
+
     /** 위젯 보기: day / week / month */
     fun view(c: Context): String = prefs(c).getString("view", "day") ?: "day"
 

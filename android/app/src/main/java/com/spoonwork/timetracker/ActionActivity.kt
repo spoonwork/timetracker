@@ -17,7 +17,8 @@ class ActionActivity : Activity() {
         super.onCreate(savedInstanceState)
         try {
             when (intent.getStringExtra("type")) {
-                "todo" -> toggleTodo(applicationContext, intent.getStringExtra("text") ?: "")
+                "todo" -> toggleTodo(applicationContext, intent.getStringExtra("text") ?: "",
+                    intent.getStringExtra("day")?.takeIf { it.isNotEmpty() })
                 "plan" -> startActivity(
                     Intent(this, QuickActivity::class.java)
                         .putExtra("mode", "plan")
@@ -47,11 +48,14 @@ class ActionActivity : Activity() {
     }
 
     companion object {
-        fun toggleTodo(ctx: Context, text: String) {
+        fun toggleTodo(ctx: Context, text: String, dayArg: String? = null) {
             if (text.isEmpty()) return
-            val day = Data.trackerDay()
+            val day = dayArg ?: Data.trackerDay()
             var done = true
-            Data.cache(ctx)?.optJSONArray("todos")?.let { arr ->
+            val c0 = Data.cache(ctx)
+            val arr0 = if (day == Data.trackerDay()) c0?.optJSONArray("todos")
+                else c0?.optJSONObject("days")?.optJSONObject(day)?.optJSONArray("t")
+            arr0?.let { arr ->
                 for (i in 0 until arr.length()) {
                     val t = arr.optJSONObject(i) ?: continue
                     if (t.optString("text") == text) { done = !t.optBoolean("done"); break }

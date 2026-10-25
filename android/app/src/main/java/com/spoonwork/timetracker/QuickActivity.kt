@@ -276,14 +276,15 @@ class QuickActivity : Activity() {
         when (m) {
             "sleep" -> {
                 cat = "수면"
-                day = Data.trackerDay(-1)          // 어젯밤
+                val dx = intent.getStringExtra("day")?.takeIf { it.isNotEmpty() }
+                day = if (dx != null) Data.shift(dx, -1) else Data.trackerDay(-1)   // 그 전날 밤
                 sh = p.getInt("sleep_sh", 1); sm = p.getInt("sleep_sm", 0)
                 eh = p.getInt("sleep_eh", 8); em = p.getInt("sleep_em", 0)
             }
             "block" -> {
                 cat = p.getString("last_cat", "작업") ?: "작업"
                 if (cat == "수면") cat = "작업"
-                day = Data.trackerDay()
+                day = intent.getStringExtra("day")?.takeIf { it.isNotEmpty() } ?: Data.trackerDay()
                 eh = now.get(Calendar.HOUR_OF_DAY); em = now.get(Calendar.MINUTE) / 10 * 10
                 val st = (now.clone() as Calendar).apply { add(Calendar.HOUR_OF_DAY, -1) }
                 sh = st.get(Calendar.HOUR_OF_DAY); sm = st.get(Calendar.MINUTE) / 10 * 10
@@ -297,7 +298,7 @@ class QuickActivity : Activity() {
                 fillPlanText()
             }
             "todo" -> {
-                day = Data.trackerDay()
+                day = intent.getStringExtra("day")?.takeIf { it.isNotEmpty() } ?: Data.trackerDay()
                 todoEdit.requestFocus()
             }
         }

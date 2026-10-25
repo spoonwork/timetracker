@@ -39,8 +39,22 @@ class TrackerWidget : AppWidgetProvider() {
                 render(context)
                 refresh(context)       // 그 달 기록 받아오기
             }
+            ACTION_PICK -> {
+                // 달력에서 날짜 누름 → 이 위젯을 그 날 데일리로
+                val wid = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
+                val ds = intent.getStringExtra("day") ?: return
+                Data.prefs(context).edit().putString("view_$wid", "day").putString("sel_$wid", ds).apply()
+                render(context)
+            }
             ACTION_NEXT_VIEW -> {
                 val wid = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
+                val pr = Data.prefs(context)
+                if (pr.getString("sel_$wid", null) != null) {
+                    // 날짜 보던 중이면 달력으로 돌아가기
+                    pr.edit().remove("sel_$wid").putString("view_$wid", "month").apply()
+                    render(context)
+                    return
+                }
                 val next = when (Data.viewFor(context, wid)) { "day" -> "week"; "week" -> "month"; else -> "day" }
                 Data.prefs(context).edit().putString("view_$wid", next)
                     .putInt("moff_$wid", 0).putInt("woff_$wid", 0).apply()
@@ -59,6 +73,7 @@ class TrackerWidget : AppWidgetProvider() {
         const val ACTION_REFRESH = "com.spoonwork.timetracker.REFRESH"
         const val ACTION_NEXT_VIEW = "com.spoonwork.timetracker.NEXT_VIEW"
         const val ACTION_SHIFT = "com.spoonwork.timetracker.SHIFT"
+        const val ACTION_PICK = "com.spoonwork.timetracker.PICK"
 
         /** 시트에서 오늘 요약을 받아와 위젯 다시 그림 (네트워크 보장되는 작업으로 실행) */
         fun refresh(context: Context, pending: PendingResult? = null) {
@@ -171,8 +186,12 @@ class TrackerWidget : AppWidgetProvider() {
             for (id in ids) {
                 val view = Data.viewFor(context, id)
                 curOff = if (view == "month") prefs.getInt("moff_$id", 0) else if (view == "week") prefs.getInt("woff_$id", 0) else 0
-                val stats = statsFor(view)
                 val isDay = view == "day"
+                val sel = if (isDay) Data.selDay(context, id)?.takeIf { it != today } else null
+                val selDay = cache?.optJSONObject("days")?.optJSONObject(sel ?: "")
+                val stats = if (sel != null) {
+                    "작업 ${Data.hm((selDay?.optInt("w") ?: 0) / 60)} · 수면 ${Data.hm(selDay?.optInt("s") ?: 0)}"
+                } else statsFor(view)
                 // 달력은 목록이 없는 별도 레이아웃 (목록이 겹쳐 보이지 않게)
                 val rv = RemoteViews(context.packageName, if (isDay) R.layout.widget else R.layout.widget_cal)
                 rv.setInt(R.id.bg, "setColorFilter", if (dark) Color.parseColor("#111827") else Color.WHITE)
@@ -200,19 +219,22 @@ class TrackerWidget : AppWidgetProvider() {
                         val ws = Data.toCal(Data.shift(Data.weekStart(today), 7 * prefs.getInt("woff_$id", 0)))
                         "${ws.get(java.util.Calendar.MONTH) + 1}/${ws.get(java.util.Calendar.DAY_OF_MONTH)}~"
                     }
-                    else -> Data.prettyDay(today).replace("월 ", "/").replace("일 ", " ")
+                    else -> if (sel != null) "◂ " + Data.prettyDay(sel).replace("월 ", "/").replace("일 ", " ")
+                        else Data.prettyDay(today).replace("월 ", "/").replace("일 ", " ")
                 }
                 rv.setTextViewText(R.id.title, "$title ▾")
                 rv.setTextViewText(R.id.stats,
                     (if (loading && cache == null) "불러오는 중…" else stats) + if (hasUpdate) "  ⬆새 버전" else "")
                 rv.setTextViewText(R.id.btn_refresh, if (loading) "⋯" else "↻")
                 if (isDay) {
-                    rv.setImageViewBitmap(R.id.strip, strip)
-                    rv.setOnClickPendingIntent(R.id.btn_sleep, quick(context, "sleep", 1))
-                    rv.setOnClickPendingIntent(R.id.btn_block, quick(context, "block", 2))
-                    rv.setOnClickPendingIntent(R.id.btn_plan, quick(context, "plan", 3))
-                    rv.setOnClickPendingIntent(R.id.btn_todo, quick(context, "todo", 4))
-                    rv.setOnClickPendingIntent(R.id.strip, quick(context, "block", 5))
+                    rv.setImageViewBitmap(R.id.strip,
+                        if (sel != null) drawStrip(selDay?.optJSONArray("b"), light, showNow = false) else strip)
+                    val base = 100 + (id % 1000) * 8
+                    rv.setOnClickPendingIntent(R.id.btn_sleep, quick(context, "sleep", base + 1, sel))
+                    rv.setOnClickPendingIntent(R.id.btn_block, quick(context, "block", base + 2, sel))
+                    rv.setOnClickPendingIntent(R.id.btn_plan, quick(context, "plan", base + 3, sel))
+                    rv.setOnClickPendingIntent(R.id.btn_todo, quick(context, "todo", base + 4, sel))
+                    rv.setOnClickPendingIntent(R.id.strip, quick(context, "block", base + 5, sel))
                 }
                 rv.setOnClickPendingIntent(
                     R.id.title,
@@ -335,10 +357,10 @@ class TrackerWidget : AppWidgetProvider() {
             for (i in 0 until 42) {
                 val cid = context.resources.getIdentifier("c$i", "id", context.packageName)
                 if (i >= cellDays.size) continue
-                // 그 날 데일리 트래커 열기
-                val it = Intent(Intent.ACTION_VIEW, Uri.parse("https://spoonwork.github.io/timetracker/?date=" + cellDays[i]))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                rv.setOnClickPendingIntent(cid, PendingIntent.getActivity(context, 3000 + (id % 1000) * 64 + i, it,
+                // 그 날 데일리 위젯으로 바꾸기
+                val it = Intent(context, TrackerWidget::class.java).setAction(ACTION_PICK)
+                    .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).putExtra("day", cellDays[i])
+                rv.setOnClickPendingIntent(cid, PendingIntent.getBroadcast(context, 3000 + (id % 1000) * 64 + i, it,
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
             }
 
@@ -354,9 +376,10 @@ class TrackerWidget : AppWidgetProvider() {
             rv.setOnClickPendingIntent(R.id.btn_add, quick(context, "plan", 6))
         }
 
-        private fun quick(context: Context, mode: String, req: Int): PendingIntent {
+        private fun quick(context: Context, mode: String, req: Int, day: String? = null): PendingIntent {
             val i = Intent(context, QuickActivity::class.java)
                 .putExtra("mode", mode)
+                .putExtra("day", day ?: "")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
             return PendingIntent.getActivity(
                 context, req, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
@@ -371,7 +394,7 @@ class TrackerWidget : AppWidgetProvider() {
         }
 
         /** 하루(5시~다음날 5시) 칠한 칸 띠 */
-        fun drawStrip(blocks: JSONArray?, dark: Boolean = false): Bitmap {
+        fun drawStrip(blocks: JSONArray?, dark: Boolean = false, showNow: Boolean = true): Bitmap {
             val w = 960f
             val h = 96f
             val barH = 60f
@@ -410,6 +433,7 @@ class TrackerWidget : AppWidgetProvider() {
             }
 
             // 지금 시각
+            if (!showNow) return bmp
             val now = Calendar.getInstance()
             val nowMin = Data.toGrid(now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE))
             p.color = Color.parseColor("#E85A5A")

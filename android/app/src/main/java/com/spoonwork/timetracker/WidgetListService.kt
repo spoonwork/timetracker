@@ -10,7 +10,8 @@ import java.util.Locale
 
 /** 데일리 위젯 목록: 할 일 + 앞으로 7일 일정 (트래커 일정 + 구글 캘린더) */
 class WidgetListService : RemoteViewsService() {
-    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory = Factory(applicationContext)
+    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory =
+        Factory(applicationContext, intent.getIntExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
 
     private data class Row(
         val type: Int,              // 0 제목줄, 1 할 일, 2 일정
@@ -27,7 +28,7 @@ class WidgetListService : RemoteViewsService() {
         val past: Boolean = false
     )
 
-    private class Factory(val ctx: Context) : RemoteViewsFactory {
+    private class Factory(val ctx: Context, val wid: Int) : RemoteViewsFactory {
         private var rows: List<Row> = emptyList()
 
         override fun onCreate() {}
@@ -58,20 +59,23 @@ class WidgetListService : RemoteViewsService() {
         }
 
         private fun build() {
-            val today = Data.trackerDay()
-            val cache = Data.cache(ctx)?.takeIf { it.optString("date") == today }
+            val realToday = Data.trackerDay()
+            val cache = Data.cache(ctx)?.takeIf { it.optString("date") == realToday }
+            // 달력에서 날짜를 눌러 들어왔으면 그 날 기준
+            val today = Data.selDay(ctx, wid) ?: realToday
             val out = mutableListOf<Row>()
             val now = System.currentTimeMillis()
 
             // 할 일
-            val todos = cache?.optJSONArray("todos")
+            val todos = if (today == realToday) cache?.optJSONArray("todos")
+                else cache?.optJSONObject("days")?.optJSONObject(today)?.optJSONArray("t")
             val todoRows = mutableListOf<Row>()
             if (todos != null) {
                 for (i in 0 until todos.length()) {
                     val t = todos.optJSONObject(i) ?: continue
                     val text = t.optString("text")
                     if (text.isBlank()) continue
-                    todoRows.add(Row(1, text, t.optBoolean("done")))
+                    todoRows.add(Row(1, text, t.optBoolean("done"), day = today))
                 }
             }
             if (todoRows.isNotEmpty()) {
@@ -84,13 +88,14 @@ class WidgetListService : RemoteViewsService() {
             val last = Data.shift(today, 6)
             val events = Cal.events(ctx, today, last)
             val days = cache?.optJSONObject("days")
-            val checks = cache?.optJSONObject("checks")
+            val checks = if (today == realToday) cache?.optJSONObject("checks")
+                else cache?.optJSONObject("days")?.optJSONObject(today)?.optJSONObject("c")
             for (n in 0..6) {
                 val d = Data.shift(today, n)
                 val list = mutableListOf<Row>()
                 // 트래커 일정 (PLAN)
                 val plans = days?.optJSONObject(d)?.optJSONObject("p")
-                    ?: if (n == 0) cache?.optJSONObject("plans") else null
+                    ?: if (d == realToday) cache?.optJSONObject("plans") else null
                 if (plans != null) {
                     val ks = plans.keys()
                     while (ks.hasNext()) {
@@ -110,15 +115,16 @@ class WidgetListService : RemoteViewsService() {
                     if (!e.days().contains(d)) continue
                     val color = if (e.color == 0) Color.parseColor("#7986CB") else (e.color or 0xFF000000.toInt())
                     val time = if (e.allDay) "하루 종일" else "${hmText(e.begin)} ~ ${hmText(e.end)}"
-                    val rel = if (e.allDay) (if (n == 0) "오늘" else "${n}일 후") else relText(e.begin, e.end, now)
+                    val dn = ((Data.toCal(d).timeInMillis - Data.toCal(realToday).timeInMillis) / 86400000L).toInt()
+                    val rel = if (e.allDay) (if (dn == 0) "오늘" else if (dn > 0) "${dn}일 후" else "지남") else relText(e.begin, e.end, now)
                     list.add(Row(2, e.title, false, time, rel, color, eventId = e.id,
                         begin = if (e.allDay) Data.toCal(d).timeInMillis else e.begin, end = e.end,
                         past = !e.allDay && now >= e.end))
                 }
                 if (list.isEmpty()) continue
-                val head = when (n) {
-                    0 -> "오늘 · " + Data.prettyDay(d)
-                    1 -> "내일 · " + Data.prettyDay(d)
+                val head = when (d) {
+                    realToday -> "오늘 · " + Data.prettyDay(d)
+                    Data.shift(realToday, 1) -> "내일 · " + Data.prettyDay(d)
                     else -> Data.prettyDay(d)
                 }
                 out.add(Row(0, head))
@@ -157,7 +163,7 @@ class WidgetListService : RemoteViewsService() {
                     rv.setTextViewText(R.id.text, r.text)
                     rv.setTextViewText(R.id.lead, if (r.done) "☑" else "☐")
                     rv.setTextColor(R.id.lead, if (r.done) Color.parseColor("#10B981") else mainC)
-                    rv.setOnClickFillInIntent(R.id.row, Intent().putExtra("type", "todo").putExtra("text", r.text))
+                    rv.setOnClickFillInIntent(R.id.row, Intent().putExtra("type", "todo").putExtra("text", r.text).putExtra("day", r.day))
                     return rv
                 }
                 else -> {
