@@ -1,0 +1,196 @@
+package com.spoonwork.timetracker
+
+import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.net.Uri
+import android.widget.RemoteViews
+import org.json.JSONArray
+import java.util.Calendar
+
+class TrackerWidget : AppWidgetProvider() {
+
+    override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
+        render(context)
+        refresh(context, goAsync())
+    }
+
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        if (intent.action == ACTION_REFRESH) {
+            Data.prefs(context).edit().putBoolean("loading", true).apply()
+            render(context)
+            refresh(context, goAsync())
+        }
+    }
+
+    companion object {
+        const val ACTION_REFRESH = "com.spoonwork.timetracker.REFRESH"
+
+        /** 시트에서 오늘 요약을 받아와 위젯 다시 그림 */
+        fun refresh(context: Context, pending: PendingResult? = null) {
+            val ctx = context.applicationContext
+            Thread {
+                try {
+                    val j = Data.fetchSummary(ctx, Data.trackerDay())
+                    Data.saveCache(ctx, j)
+                    Data.prefs(ctx).edit().remove("error").apply()
+                } catch (e: Exception) {
+                    Data.prefs(ctx).edit().putString("error", e.message ?: "연결 실패").apply()
+                } finally {
+                    Data.prefs(ctx).edit().putBoolean("loading", false).apply()
+                    render(ctx)
+                    pending?.finish()
+                }
+            }.start()
+        }
+
+        fun render(context: Context) {
+            val mgr = AppWidgetManager.getInstance(context)
+            val ids = mgr.getAppWidgetIds(ComponentName(context, TrackerWidget::class.java))
+            if (ids.isEmpty()) return
+
+            val today = Data.trackerDay()
+            val cache = Data.cache(context)?.takeIf { it.optString("date") == today }
+            val prefs = Data.prefs(context)
+            val error = prefs.getString("error", null)
+            val loading = prefs.getBoolean("loading", false)
+
+            val stats = when {
+                cache != null -> {
+                    val work = cache.optInt("workSec") / 60
+                    val sleep = cache.optInt("sleepMin")
+                    "작업 ${Data.hm(work)} · 수면 ${Data.hm(sleep)}" +
+                        (if (error != null) "  ⚠" else "")
+                }
+                error != null -> "⚠ $error"
+                else -> "불러오는 중…"
+            }
+            val dark = Data.dark(context)
+            val strip = drawStrip(cache?.optJSONArray("blocks"), dark)
+            val mainColor = if (dark) Color.WHITE else Color.parseColor("#1F2937")
+            val subColor = if (dark) Color.parseColor("#D1D5DB") else Color.parseColor("#6B7280")
+            val alpha = Data.bgAlpha(context) * 255 / 100
+
+            for (id in ids) {
+                val rv = RemoteViews(context.packageName, R.layout.widget)
+                rv.setInt(R.id.bg, "setColorFilter", if (dark) Color.parseColor("#111827") else Color.WHITE)
+                rv.setInt(R.id.bg, "setImageAlpha", alpha)
+                rv.setTextColor(R.id.title, mainColor)
+                rv.setTextColor(R.id.stats, subColor)
+                rv.setTextColor(R.id.btn_refresh, subColor)
+                rv.setTextColor(R.id.empty, subColor)
+                for (chip in intArrayOf(R.id.btn_sleep, R.id.btn_block, R.id.btn_plan, R.id.btn_todo)) {
+                    rv.setInt(chip, "setBackgroundResource", if (dark) R.drawable.chip_bg_dark else R.drawable.chip_bg)
+                    rv.setTextColor(chip, if (dark) Color.WHITE else Color.parseColor("#374151"))
+                }
+                rv.setTextViewText(R.id.title, Data.prettyDay(today).replace("월 ", "/").replace("일 ", " "))
+                rv.setTextViewText(R.id.stats, if (loading) "새로고침 중…" else stats)
+                rv.setImageViewBitmap(R.id.strip, strip)
+
+                rv.setOnClickPendingIntent(R.id.btn_sleep, quick(context, "sleep", 1))
+                rv.setOnClickPendingIntent(R.id.btn_block, quick(context, "block", 2))
+                rv.setOnClickPendingIntent(R.id.btn_plan, quick(context, "plan", 3))
+                rv.setOnClickPendingIntent(R.id.btn_todo, quick(context, "todo", 4))
+                rv.setOnClickPendingIntent(R.id.strip, quick(context, "block", 5))
+                rv.setOnClickPendingIntent(R.id.title, launch(context))
+
+                val refreshIntent = Intent(context, TrackerWidget::class.java).setAction(ACTION_REFRESH)
+                rv.setOnClickPendingIntent(
+                    R.id.btn_refresh,
+                    PendingIntent.getBroadcast(
+                        context, 0, refreshIntent,
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                    )
+                )
+
+                val svc = Intent(context, WidgetListService::class.java)
+                    .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+                svc.data = Uri.parse(svc.toUri(Intent.URI_INTENT_SCHEME))
+                rv.setRemoteAdapter(R.id.list, svc)
+                rv.setEmptyView(R.id.list, R.id.empty)
+
+                val template = PendingIntent.getActivity(
+                    context, 10, Intent(context, ActionActivity::class.java),
+                    PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+                rv.setPendingIntentTemplate(R.id.list, template)
+
+                mgr.updateAppWidget(id, rv)
+            }
+            mgr.notifyAppWidgetViewDataChanged(ids, R.id.list)
+        }
+
+        private fun quick(context: Context, mode: String, req: Int): PendingIntent {
+            val i = Intent(context, QuickActivity::class.java)
+                .putExtra("mode", mode)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            return PendingIntent.getActivity(
+                context, req, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+        }
+
+        private fun launch(context: Context): PendingIntent {
+            val i = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            return PendingIntent.getActivity(
+                context, 20, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+        }
+
+        /** 하루(5시~다음날 5시) 칠한 칸 띠 */
+        fun drawStrip(blocks: JSONArray?, dark: Boolean = false): Bitmap {
+            val w = 960f
+            val h = 96f
+            val barH = 60f
+            val bmp = Bitmap.createBitmap(w.toInt(), h.toInt(), Bitmap.Config.ARGB_8888)
+            val c = Canvas(bmp)
+            val p = Paint(Paint.ANTI_ALIAS_FLAG)
+            val scale = w / Data.DAY_MIN
+
+            p.color = if (dark) Color.parseColor("#33FFFFFF") else Color.parseColor("#EEF1F4")
+            c.drawRoundRect(RectF(0f, 0f, w, barH), 12f, 12f, p)
+
+            if (blocks != null) {
+                for (i in 0 until blocks.length()) {
+                    val b = blocks.optJSONObject(i) ?: continue
+                    val s = b.optInt("startMin", -1)
+                    val e = b.optInt("endMin", -1)
+                    if (s < 0 || e <= s) continue
+                    p.color = Data.color(b.optString("category"))
+                    c.drawRect(s * scale, 0f, e * scale, barH, p)
+                }
+            }
+
+            // 시간 눈금 + 글자 (5, 11, 17, 23시)
+            p.color = Color.parseColor("#33000000")
+            p.strokeWidth = 2f
+            for (hr in 1 until 24) {
+                val x = hr * 60 * scale
+                c.drawLine(x, if (hr % 6 == 0) 0f else barH - 14f, x, barH, p)
+            }
+            p.color = if (dark) Color.parseColor("#D1D5DB") else Color.parseColor("#9CA3AF")
+            p.textSize = 26f
+            for (hr in 0 until 24 step 6) {
+                val x = hr * 60 * scale
+                p.textAlign = if (hr == 0) Paint.Align.LEFT else Paint.Align.CENTER
+                c.drawText("${(hr + Data.DAY_START) % 24}", x + if (hr == 0) 4f else 0f, h - 6f, p)
+            }
+
+            // 지금 시각
+            val now = Calendar.getInstance()
+            val nowMin = Data.toGrid(now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE))
+            p.color = Color.parseColor("#E85A5A")
+            p.strokeWidth = 4f
+            c.drawLine(nowMin * scale, 0f, nowMin * scale, barH, p)
+            return bmp
+        }
+    }
+}
