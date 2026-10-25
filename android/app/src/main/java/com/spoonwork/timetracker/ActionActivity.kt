@@ -41,6 +41,24 @@ class ActionActivity : Activity() {
                         TrackerWidget.refresh(ctx)
                     }.start()
                 }
+                "tdel", "wtdel" -> {
+                    val d = intent.getStringExtra("day")?.takeIf { it.isNotEmpty() } ?: Data.trackerDay()
+                    val text = intent.getStringExtra("text") ?: ""
+                    val ops = JSONArray().put(Data.op(if (intent.getStringExtra("type") == "wtdel") "wt_del" else "todo_del", d)
+                        .put("text", text))
+                    val ctx = applicationContext
+                    Data.applyOpsToCache(ctx, ops)
+                    TrackerWidget.render(ctx)
+                    Toast.makeText(ctx, "지웠어요: $text", Toast.LENGTH_SHORT).show()
+                    Thread {
+                        try { Data.sendOps(ctx, ops) } catch (e: Exception) {
+                            Handler(Looper.getMainLooper()).post {
+                                Toast.makeText(ctx, "저장 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        TrackerWidget.refresh(ctx)
+                    }.start()
+                }
                 "wfilter" -> {
                     val wid = intent.getIntExtra("wid", -1)
                     val pr = Data.prefs(applicationContext)

@@ -184,6 +184,10 @@ class WidgetListService : RemoteViewsService() {
                     rv.setViewVisibility(R.id.lead, if (r.work) android.view.View.GONE else android.view.View.VISIBLE)
                     rv.setViewVisibility(R.id.rcheck, if (r.work) android.view.View.VISIBLE else android.view.View.GONE)
                     if (r.work) rv.setTextViewText(R.id.rcheck, if (r.done) "☑" else "☐")
+                    // 오른쪽 ✕ = 지우기
+                    rv.setViewVisibility(R.id.del, android.view.View.VISIBLE)
+                    rv.setOnClickFillInIntent(R.id.del, Intent().putExtra("type", if (r.work) "wtdel" else "tdel")
+                        .putExtra("text", r.text).putExtra("day", r.day))
                     if (r.work) {
                         rv.setOnClickFillInIntent(R.id.row, Intent().putExtra("type", "wt").putExtra("text", r.text)
                             .putExtra("day", r.day).putExtra("done", !r.done))

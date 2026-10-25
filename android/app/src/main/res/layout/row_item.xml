@@ -40,4 +40,14 @@
         android:textColor="#E06666"
         android:textSize="16sp"
         android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/del"
+        android:layout_width="30dp"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:text="✕"
+        android:textColor="#9CA3AF"
+        android:textSize="13sp"
+        android:visibility="gone" />
 </LinearLayout>
