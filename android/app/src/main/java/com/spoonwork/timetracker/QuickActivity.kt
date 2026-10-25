@@ -35,6 +35,7 @@ class QuickActivity : Activity() {
     private var em = 0
     private var planHour = 10
     private var app: JSONObject? = null
+    private var touched = false
 
     private lateinit var tabs: Map<String, TextView>
     private lateinit var dateBtn: TextView
@@ -388,14 +389,20 @@ class QuickActivity : Activity() {
 
     // ---------------- 불러오기 / 저장 ----------------
     private fun load() {
-        status.text = "불러오는 중…"
+        // 위젯에 있는 오늘 데이터로 먼저 보여주고, 최신 데이터는 뒤에서 받아옴
+        if (app == null) {
+            Data.appFromCache(applicationContext)?.let { app = it; refreshUi() }
+        }
+        status.text = if (app == null) "불러오는 중…" else ""
         Thread {
             try {
                 val a = Data.fetchAppData(applicationContext)
                 runOnUiThread {
-                    app = a
-                    status.text = ""
-                    refreshUi()
+                    if (!touched) {          // 그 사이 고친 게 있으면 지금 화면 유지
+                        app = a
+                        status.text = ""
+                        refreshUi()
+                    }
                 }
             } catch (e: Exception) {
                 runOnUiThread { status.text = "불러오기 실패: ${e.message}" }
@@ -405,6 +412,7 @@ class QuickActivity : Activity() {
 
     /** 화면·위젯에 바로 반영하고, 시트 저장은 뒤에서 (한 번 왕복) */
     private fun commit(done: String, ops: JSONArray) {
+        touched = true
         val ctx = applicationContext
         app?.let { Data.applyOps(it, ops) }
         Data.applyOpsToCache(ctx, ops)

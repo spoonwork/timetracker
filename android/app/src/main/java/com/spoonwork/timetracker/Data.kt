@@ -242,15 +242,18 @@ object Data {
         return ops
     }
 
-    /** 위젯 캐시(오늘 요약)에 바로 반영 */
-    fun applyOpsToCache(c: Context, ops: JSONArray) {
-        val cache = cache(c) ?: return
+    /** 위젯 캐시로 입력창 목록을 바로 보여주기 위한 앱데이터 모양 */
+    fun appFromCache(c: Context): JSONObject? {
+        val cache = cache(c) ?: return null
+        return appShape(cache)
+    }
+
+    private fun appShape(cache: JSONObject): JSONObject {
         val day = cache.optString("date")
         val app = JSONObject()
-        app.put("todos", JSONObject().put(day, cache.optJSONArray("todos") ?: JSONArray()))
-        app.put("hourPlans", JSONObject().put(day, cache.optJSONObject("plans") ?: JSONObject()))
-        app.put("manualBlocks", JSONObject().put(day, cache.optJSONArray("blocks") ?: JSONArray()))
-        // 다른 날짜 일정
+        app.put("todos", JSONObject().put(day, JSONArray((cache.optJSONArray("todos") ?: JSONArray()).toString())))
+        app.put("hourPlans", JSONObject().put(day, JSONObject((cache.optJSONObject("plans") ?: JSONObject()).toString())))
+        app.put("manualBlocks", JSONObject().put(day, JSONArray((cache.optJSONArray("blocks") ?: JSONArray()).toString())))
         val days = cache.optJSONObject("days")
         if (days != null) {
             val hp = app.getJSONObject("hourPlans")
@@ -258,9 +261,18 @@ object Data {
             while (ks.hasNext()) {
                 val k = ks.next()
                 if (k == day) continue
-                days.optJSONObject(k)?.optJSONObject("p")?.let { hp.put(k, it) }
+                days.optJSONObject(k)?.optJSONObject("p")?.let { hp.put(k, JSONObject(it.toString())) }
             }
         }
+        return app
+    }
+
+    /** 위젯 캐시(오늘 요약)에 바로 반영 */
+    fun applyOpsToCache(c: Context, ops: JSONArray) {
+        val cache = cache(c) ?: return
+        val day = cache.optString("date")
+        val days = cache.optJSONObject("days")
+        val app = appShape(cache)
         applyOps(app, ops)
         cache.put("todos", app.getJSONObject("todos").optJSONArray(day) ?: JSONArray())
         cache.put("plans", app.getJSONObject("hourPlans").optJSONObject(day) ?: JSONObject())
