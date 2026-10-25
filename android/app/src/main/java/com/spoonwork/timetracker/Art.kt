@@ -250,7 +250,14 @@ object Art {
 
         val colTop = 60 * u
         val lineH = 12 * u
-        val maxLines = maxOf(1, ((h - colTop - 4 * u) / lineH).toInt())
+        // 내용 줄 수만큼만 높이를 씀 (빈 공간 없이)
+        val todayItems = items(days, events, todayDs, todayDs).filter { it.start <= todayDs && it.end >= todayDs }
+        val todosArr = cache?.optJSONArray("todos")
+        val list = (0 until (todosArr?.length() ?: 0)).mapNotNull { todosArr?.optJSONObject(it) }
+            .filter { it.optString("text").isNotBlank() }
+        val capLines = maxOf(1, ((h - colTop - 4 * u) / lineH).toInt())
+        val maxLines = minOf(capLines, maxOf(1, todayItems.size, list.size))
+        val usedH = colTop + lineH * maxLines + 8 * u
         val half = W / 2f
         p.textAlign = Paint.Align.LEFT
 
@@ -259,7 +266,6 @@ object Art {
         p.textSize = 9.5f * u
         p.color = main
         c.drawText("일정", 8 * u, colTop, p)
-        val todayItems = items(days, events, todayDs, todayDs).filter { it.start <= todayDs && it.end >= todayDs }
         p.typeface = Typeface.DEFAULT
         p.textSize = 8.5f * u
         var y = colTop + lineH
@@ -277,9 +283,6 @@ object Art {
         p.typeface = Typeface.DEFAULT_BOLD
         p.textSize = 9.5f * u
         p.color = main
-        val todos = cache?.optJSONArray("todos")
-        val list = (0 until (todos?.length() ?: 0)).mapNotNull { todos?.optJSONObject(it) }
-            .filter { it.optString("text").isNotBlank() }
         val done = list.count { it.optBoolean("done") }
         c.drawText(if (list.isNotEmpty() && done == list.size) "할 일 ✓ 달성!" else "할 일  $done/${list.size}", half + 6 * u, colTop, p)
         p.typeface = Typeface.DEFAULT
@@ -291,7 +294,7 @@ object Art {
             c.drawText(fit(p, (if (d) "☑ " else "☐ ") + t.optString("text"), half - 14 * u), half + 6 * u, y, p)
             y += lineH
         }
-        return h
+        return usedH
     }
 
     // ================= 위클리 =================
