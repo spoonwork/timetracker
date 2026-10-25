@@ -225,8 +225,11 @@ class TrackerWidget : AppWidgetProvider() {
                 val svc = Intent(context, WidgetListService::class.java)
                     .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
                 svc.data = Uri.parse(svc.toUri(Intent.URI_INTENT_SCHEME))
-                rv.setRemoteAdapter(R.id.list, svc)
-                if (view == "day") rv.setEmptyView(R.id.list, R.id.empty)
+                // 달력 보기에서는 목록을 연결하지 않음 (연결하면 목록이 다시 보이게 됨)
+                if (view == "day") {
+                    rv.setRemoteAdapter(R.id.list, svc)
+                    rv.setEmptyView(R.id.list, R.id.empty)
+                }
 
                 val template = PendingIntent.getActivity(
                     context, 10, Intent(context, ActionActivity::class.java),
