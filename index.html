@@ -621,6 +621,7 @@
   <div class="status" id="status">로컬 모드 (Google Sheets 미연결)</div>
 </div>
 
+<script src="focusflow-history.js"></script>
 <script>
 const CONFIG = {
   PIN: '0000',
@@ -1701,6 +1702,13 @@ function calcDayStats(date) {
 
   const sleepMin = calcSleepWindow(date);
 
+  // 포커스플로우 기록 (트래커 기록이 없는 날만, 2026-02-18 ~ 04-21)
+  const ff = (typeof FF_HISTORY !== 'undefined') ? FF_HISTORY[ds] : null;
+  if (ff && !auto.length) {
+    workMin += Math.round(ff.work / 60);
+    distractMin += Math.round(ff.idle / 60);
+  }
+
   return { workMin, taxMin, distractMin, sleepMin };
 }
 
@@ -1782,6 +1790,24 @@ function renderTodos() {
   });
 }
 
+function renderFFDay(ff) {
+  const fmt = (sec) => { const m = Math.round(sec / 60); return `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`; };
+  const row = (name, sec, muted) => `
+    <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px;${muted ? 'color:var(--text-muted);' : ''}">
+      <span>${escapeHtml(name)}</span><span style="font-weight:500;">${fmt(sec)}</span>
+    </div>`;
+  let html = `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">포커스플로우 기록 · 시간대 정보 없음</div>`;
+  if (ff.in || ff.out) {
+    html += `<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">출근 ${ff.in || '--:--'} · 퇴근 ${ff.out || '--:--'}</div>`;
+  }
+  html += (ff.progs || []).map(([n, s]) => row(n, s)).join('');
+  if (ff.stages && ff.stages.length) {
+    html += `<div style="font-size:11px;color:var(--text-muted);margin:8px 0 2px;">공정</div>`;
+    html += ff.stages.map(([n, s]) => row(n, s, true)).join('');
+  }
+  return html;
+}
+
 function renderAutoTop3() {
   const ds = fmtDate(state.date);
   const auto = state.autoLogs[ds] || [];
@@ -1812,6 +1838,13 @@ function renderAutoTop3() {
   const sorted = Object.entries(byCat).sort((a, b) => b[1].min - a[1].min);
   const fmt = (sec) => { const m = Math.round(sec / 60); return `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`; };
   const el = document.getElementById('auto-top3');
+
+  // 트래커 기록이 없고 포커스플로우 기록이 있는 날
+  const ffDay = (typeof FF_HISTORY !== 'undefined') ? FF_HISTORY[ds] : null;
+  if (!auto.length && ffDay) {
+    el.innerHTML = renderFFDay(ffDay);
+    return;
+  }
 
   if (!sorted.length) {
     el.innerHTML = '<div style="color: var(--text-muted); font-size: 11px; font-style: italic;">아직 데이터 없음</div>';
