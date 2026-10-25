@@ -253,7 +253,7 @@
   /* 칠한 칸은 칸 사이 선 없이 이어지게 (위아래 시간 줄까지) */
   .pds-cell.has-color {
     border-left-color: transparent;
-    margin-bottom: -1px; min-height: 27px; max-height: 27px;
+    margin-bottom: -1px; margin-right: -1px; min-height: 27px; max-height: 27px;
     position: relative; z-index: 1;
   }
   .pds-cell.has-color + .pds-cell:not(.has-color) { border-left-color: var(--line-soft); }
@@ -1374,6 +1374,7 @@ function renderDaily() {
   gridEl.querySelectorAll('.pds-fold').forEach(f => {
     f.onclick = () => { state.sleepUnfold = f.dataset.fold === '1'; renderDaily(); };
   });
+  roundBlocks(gridEl);
   placeNowLine();
   updateMobileTabCount();
   if (state.todoAddMode) gridEl.classList.add('todo-add-mode');
@@ -1970,6 +1971,38 @@ function renderStats() {
     const clk = (gm) => { const t = ((gm % 1440) + 1440) % 1440; const hh = (Math.floor(t / 60) + CONFIG.DAY_START_HOUR) % 24; return `${String(hh).padStart(2,'0')}:${String(t % 60).padStart(2,'0')}`; };
     setSub('s-sleep-sub', `${clk(st)} → ${clk(en)}`);
   } else setSub('s-sleep-sub', '');
+}
+
+// 같은 색으로 이어진 칸 덩어리의 바깥 모서리만 둥글게
+function roundBlocks(grid) {
+  const rows = [];
+  grid.childNodes.forEach(n => {
+    if (n.classList && n.classList.contains('pds-row')) rows.push(Array.from(n.querySelectorAll('.pds-cell')));
+    else if (n.classList && n.classList.contains('pds-fold')) rows.push(null);   // 접힌 줄은 끊김
+  });
+  // 칸 왼쪽 끝 색 / 오른쪽 끝 색 / 한 색으로 꽉 찼는지
+  const info = (c) => {
+    if (!c || !c.classList.contains('has-color')) return null;
+    const cols = (c.style.background.match(/rgba?\([^)]*\)|transparent/g) || []);
+    if (!cols.length) return null;
+    const L = cols[0], Rt = cols[cols.length - 1];
+    return { L, R: Rt, solid: cols.every(x => x === L) && L !== 'transparent' };
+  };
+  const R = '7px';
+  rows.forEach((cells, r) => {
+    if (!cells) return;
+    cells.forEach((c, i) => {
+      const me = info(c);
+      if (!me) return;
+      const lf = info(cells[i - 1]), rt = info(cells[i + 1]);
+      const up = info(rows[r - 1] ? rows[r - 1][i] : null), dn = info(rows[r + 1] ? rows[r + 1][i] : null);
+      const l = lf && me.L !== 'transparent' && lf.R === me.L;
+      const rr = rt && me.R !== 'transparent' && rt.L === me.R;
+      const u = me.solid && up && up.solid && up.L === me.L;
+      const d = me.solid && dn && dn.solid && dn.L === me.L;
+      c.style.borderRadius = [(!u && !l) ? R : 0, (!u && !rr) ? R : 0, (!d && !rr) ? R : 0, (!d && !l) ? R : 0].join(' ');
+    });
+  });
 }
 
 // 오늘이면 시간표에 지금 시각 빨간 선
