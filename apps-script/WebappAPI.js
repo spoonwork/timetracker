@@ -439,6 +439,8 @@ function buildWidgetSummary(ss, date, fromDs, toDs, fresh) {
     if (wt[d] && wt[d].length) item.wt = wt[d];
     const hc = (app.hourChecks || {})[d];
     if (hc && Object.keys(hc).length) item.c = hc;
+    const gw = (app.gcalWant || {})[d];
+    if (gw && Object.keys(gw).length) item.gw = gw;
     days[d] = item;
   }
 
@@ -530,6 +532,8 @@ function paintRangeGs(mb, ds, s, e, cat) {
   mb[ds] = merged;
 }
 
+const WEBAPP_PATCH_KEYS = ['manualBlocks', 'todos', 'hourPlans', 'hourMarkers', 'hourChecks', 'hourAlign', 'see', 'workTypes', 'gcalWant'];
+
 function applyWidgetOps(ss, appSheet, ops) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
@@ -549,6 +553,20 @@ function applyWidgetOps(ss, appSheet, ops) {
       if (String(o.t).indexOf('wt_') === 0) {
         if (!wb) wb = SpreadsheetApp.openById(WORKCAL_ID);
         applyWorkOp(wb, o);
+        return;
+      }
+      if (o.t === 'patch') {
+        // 웹앱: 바뀐 칸만 고치기 (다른 기기에서 고친 건 건드리지 않음)
+        if (WEBAPP_PATCH_KEYS.indexOf(o.k) < 0) return;
+        const root = obj(o.k), p = o.p || [];
+        if (p.length === 1) {
+          if (o.v === null || o.v === undefined) delete root[p[0]]; else root[p[0]] = o.v;
+        } else if (p.length === 2) {
+          let dd = root[p[0]];
+          if (!dd || typeof dd !== 'object' || Array.isArray(dd)) dd = root[p[0]] = {};
+          if (o.v === null || o.v === undefined) delete dd[p[1]]; else dd[p[1]] = o.v;
+          if (!Object.keys(dd).length) delete root[p[0]];
+        }
         return;
       }
       if (o.t === 'todo_add') {
