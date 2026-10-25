@@ -486,6 +486,82 @@
   }
   .month-stats .stat-row-mini span:first-child { color: var(--text-muted); }
   .month-stats .stat-row-mini span:last-child { font-weight: 500; }
+
+  /* ===== 2026-10 새 UI ===== */
+  :root { --line: #E4E2DC; --line-soft: #F1EFEA; --bg: #FAFAF8; --radius: 12px; }
+  button { border-radius: 8px; }
+  .card, .stat { border-radius: var(--radius); }
+  .pds-card { border-radius: var(--radius); }
+  header.top { align-items: center; border-bottom: 0; padding-bottom: 4px; }
+  header.top .label:empty { display: none; }
+  .date-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .date-row h2 { margin: 0 !important; font-size: 23px !important; font-weight: 700 !important; letter-spacing: -0.5px; }
+  .date-row h2 .wd { font-size: 14px; color: #6B7280; font-weight: 500; }
+  .nav-arr { width: 32px; height: 32px; padding: 0; font-size: 18px; line-height: 1; color: #6B7280; background: var(--card); border: 1px solid var(--line); }
+  .view-tabs { align-items: center; gap: 6px; }
+  .view-tabs .seg { display: flex; background: #EFEDE8; border-radius: 10px; padding: 3px; gap: 2px; }
+  .view-tabs .seg button { border: 0; background: transparent; color: #6B7280; padding: 5px 14px; border-radius: 8px; }
+  .view-tabs .seg button.active { background: #fff; color: var(--text); font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  .view-tabs > button { height: 34px; min-width: 34px; background: var(--card); border: 1px solid var(--line); color: #4B5563; font-size: 14px; }
+  .view-tabs > button.icon { font-size: 16px; padding: 0 8px; }
+  #work-type-bar button, #work-type-bar span { border-radius: 20px !important; }
+
+  .stat-row { grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 10px; }
+  .stat { padding: 12px 14px; }
+  .stat .stat-value { font-weight: 700; letter-spacing: -0.5px; }
+  .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 3px; min-height: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stat-sub b.up { color: #2BB673; font-weight: 600; }
+  .stat-sub b.down { color: #9CA3AF; font-weight: 600; }
+  .stat-main { display: flex; align-items: flex-end; gap: 14px; }
+  .wk-bars { flex: 1; display: flex; gap: 3px; align-items: flex-end; height: 28px; max-width: 220px; }
+  .wk-bars i { flex: 1; background: #F3C1C1; border-radius: 2px; }
+  .wk-bars i.cur { background: var(--c-work); }
+  .wk-bars i.fut { background: #F1EFEA; }
+
+  #pds-grid { position: relative; }
+  .pds-plan.has-plan { background: #F8F5EC; }
+  .plan-ok { font-size: 10.5px; color: #2BB673; font-weight: 600; white-space: nowrap; padding-right: 8px; position: relative; z-index: 6; }
+  .pds-fold {
+    display: grid; grid-template-columns: 1fr 68px 1fr; align-items: center;
+    min-height: 30px; cursor: pointer; font-size: 11.5px; color: #6B7280;
+    border-bottom: 1px solid var(--line-soft);
+    background: repeating-linear-gradient(135deg, #F7F6F2 0 6px, #F1EFEA 6px 12px);
+  }
+  .pds-fold.open { min-height: 22px; background: #F7F6F2; }
+  .pds-fold .f-plan { padding-left: 10px; }
+  .pds-fold .f-time { text-align: center; font-variant-numeric: tabular-nums; }
+  .pds-fold .f-do { padding-left: 8px; }
+  .pds-fold em { font-style: normal; color: #9CA3AF; margin-left: 6px; }
+  .now-line { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid #E85A5A; z-index: 4; pointer-events: none; }
+  .now-line::before { content: attr(data-t); position: absolute; left: 2px; top: -9px; background: #E85A5A; color: #fff; font-size: 9.5px; padding: 1px 4px; border-radius: 4px; }
+
+  .donut { display: flex; align-items: center; gap: 12px; margin: 2px 0 8px; }
+  .donut-total b { display: block; font-size: 18px; }
+  .donut-total span { font-size: 11px; color: var(--text-muted); }
+
+  .m-tabs { display: none; }
+  @media (max-width: 700px) {
+    .date-row { flex-wrap: nowrap; }
+    .date-row h2 { min-width: 0; font-size: 21px !important; }
+    .date-row h2 .saju-info { display: block; margin: 2px 0 0 0 !important; font-size: 11px !important; font-weight: 400; }
+    .stat-row { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .stat-row .stat-work { grid-column: 1 / 4; }
+    .stat { padding: 10px 12px; }
+    .stat-sub { white-space: normal; font-size: 10.5px; }
+    .view-tabs { width: 100%; }
+    .view-tabs .seg { flex: 1; }
+    .view-tabs .seg button { flex: 1; }
+    .m-tabs { display: flex; border-bottom: 1px solid var(--line); margin: -4px 0 12px; }
+    .m-tabs span { flex: 1; text-align: center; font-size: 13px; padding: 9px 0; color: var(--text-muted); cursor: pointer; }
+    .m-tabs span.on { color: var(--text); font-weight: 700; border-bottom: 2px solid var(--text); }
+    .m-tabs b { color: #E85A5A; font-weight: 700; }
+    .daily-grid[data-tab="grid"] .sidebar { display: none; }
+    .daily-grid[data-tab="todo"] .pds-card,
+    .daily-grid[data-tab="todo"] .sidebar > .card:not(.todo-card) { display: none; }
+    .daily-grid[data-tab="sum"] .pds-card,
+    .daily-grid[data-tab="sum"] .todo-card { display: none; }
+    #app { padding-bottom: 90px; }
+  }
 </style>
 </head>
 <body>
@@ -500,33 +576,43 @@
 <!-- 메인 -->
 <div id="app">
   <header class="top">
-    <div>
+    <div class="hd-left">
       <span class="label" id="header-label"></span>
-      <h2 id="header-title" class="clickable"></h2>
-      <div id="work-type-bar" style="display:none;margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;"></div>
+      <div class="date-row">
+        <button id="btn-prev" class="nav-arr" title="이전">‹</button>
+        <h2 id="header-title" class="clickable"></h2>
+        <button id="btn-next" class="nav-arr" title="다음">›</button>
+      </div>
+      <div id="work-type-bar" style="display:none;margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;"></div>
     </div>
     <div class="view-tabs">
-      <button id="tab-monthly">먼슬리</button>
-      <button id="tab-weekly">위클리</button>
-      <button id="tab-daily" class="active">일일</button>
-      <button id="btn-prev" class="icon">◀</button>
+      <div class="seg">
+        <button id="tab-monthly">월</button>
+        <button id="tab-weekly">주</button>
+        <button id="tab-daily" class="active">일</button>
+      </div>
       <button id="btn-today">오늘</button>
-      <button id="btn-next" class="icon">▶</button>
-      <button id="btn-undo" class="icon" title="되돌리기">⏪</button>
-      <button id="btn-sync" class="icon" title="동기화">🔄</button>
+      <button id="btn-undo" class="icon" title="되돌리기">↶</button>
+      <button id="btn-sync" class="icon" title="동기화">⟳</button>
     </div>
   </header>
 
   <!-- 일일 뷰 -->
   <div id="view-daily">
     <div class="stat-row">
-      <div class="stat"><div class="stat-label">작업</div><div class="stat-value" id="s-work">-</div></div>
-      <div class="stat"><div class="stat-label">딴짓</div><div class="stat-value" id="s-distract">-</div></div>
-      <div class="stat"><div class="stat-label">집중률</div><div class="stat-value accent" id="s-focus">-</div></div>
-      <div class="stat"><div class="stat-label">수면</div><div class="stat-value" id="s-sleep">-</div></div>
+      <div class="stat stat-work"><div class="stat-label">작업</div>
+        <div class="stat-main"><div class="stat-value" id="s-work">-</div><div class="wk-bars" id="s-work-week" title="이번 주 (월~일)"></div></div>
+        <div class="stat-sub" id="s-work-sub"></div></div>
+      <div class="stat"><div class="stat-label">딴짓</div><div class="stat-value" id="s-distract">-</div><div class="stat-sub" id="s-distract-sub"></div></div>
+      <div class="stat"><div class="stat-label">집중률</div><div class="stat-value accent" id="s-focus">-</div><div class="stat-sub" id="s-focus-sub"></div></div>
+      <div class="stat"><div class="stat-label">수면</div><div class="stat-value" id="s-sleep">-</div><div class="stat-sub" id="s-sleep-sub"></div></div>
     </div>
 
-    <div class="daily-grid">
+    <div class="m-tabs" id="m-tabs">
+      <span data-t="grid" class="on">시간표</span><span data-t="todo">할 일 <b id="m-tab-n"></b></span><span data-t="sum">요약</span>
+    </div>
+
+    <div class="daily-grid" id="daily-grid" data-tab="grid">
       <div class="card pds-card">
         <div class="pds-header">
           <div class="card-title">PLAN-DO</div>
@@ -555,8 +641,8 @@
       </div>
 
       <div class="sidebar">
-        <div class="card">
-          <div class="card-title" style="display:flex;align-items:center;">📋 오늘 할 일
+        <div class="card todo-card">
+          <div class="card-title" style="display:flex;align-items:center;">오늘 할 일
             <span id="wt-filter" title="작업 스프레드(슾)만 보기" style="margin-left:auto;font-size:11px;cursor:pointer;padding:2px 8px;border-radius:10px;border:1px solid var(--line);color:var(--text-muted);">전체</span>
           </div>
           <div class="memo-list" id="todo-list"></div>
@@ -567,7 +653,7 @@
         </div>
 
         <div class="card">
-          <div class="card-title">자동 분류</div>
+          <div class="card-title">오늘 쓴 시간</div>
           <div id="auto-top3"></div>
         </div>
 
@@ -1035,13 +1121,13 @@ function render() {
   if (state.view === 'daily') {
     const saju = getSajuText(d);
     const lunar = getLunarDate(d);
-    document.getElementById('header-label').textContent = dayNameEn(d);
+    document.getElementById('header-label').textContent = '';
     const ds0 = fmtDate(d);
     let wt0 = state.workTypes[ds0] || [];
     if (typeof wt0 === 'string') wt0 = wt0 ? [wt0] : [];
     const wtBadge0 = wt0.map(k => CONFIG.WORK_TYPE[k]?.emoji || '').join('');
     document.getElementById('header-title').innerHTML = 
-      `${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일${wtBadge0 ? ' ' + wtBadge0 : ''} <span class="saju-info">${saju.year}年 ${saju.month}月 ${saju.day}日 · ${lunar.text}</span>`;
+      `${d.getMonth()+1}월 ${d.getDate()}일 <small class="wd">${'일월화수목금토'[d.getDay()]}요일</small>${wtBadge0 ? ' ' + wtBadge0 : ''} <span class="saju-info">${saju.year}年 ${saju.month}月 ${saju.day}日 · ${lunar.text}</span>`;
     updateWorkTypePalette();
     renderDaily();
   } else if (state.view === 'weekly') {
@@ -1083,14 +1169,56 @@ function renderDaily() {
   const gridEl = document.getElementById('pds-grid');
   let html = '';
 
+  // 한 시간이 통째로 수면이고 계획도 없는 줄 → 2시간 이상 이어지면 접기
+  const isWorkCat = (c) => CONFIG.WORK_CATEGORIES.includes(c);
+  const hourStart = (h) => (h - CONFIG.DAY_START_HOUR) * 60;
+  const sleepCovered = (h) => {
+    const a = hourStart(h), b = a + 60;
+    let covered = 0;
+    blocks.forEach(x => { if (x.category === '수면') covered += Math.max(0, Math.min(x.endMin, b) - Math.max(x.startMin, a)); });
+    return covered >= 60 && !(plans[h] || '').trim();
+  };
+  const foldRuns = [];
+  for (let h = CONFIG.DAY_START_HOUR; h < CONFIG.DAY_END_HOUR; h++) {
+    if (!sleepCovered(h)) continue;
+    let e = h; while (e + 1 < CONFIG.DAY_END_HOUR && sleepCovered(e + 1)) e++;
+    if (e > h) foldRuns.push([h, e]);
+    h = e;
+  }
+  const workMinInHour = (h) => {
+    const a = hourStart(h), b = a + 60;
+    const iv = [];
+    blocks.forEach(x => { if (isWorkCat(x.category)) iv.push([Math.max(a, x.startMin), Math.min(b, x.endMin)]); });
+    auto.forEach(x => { if (isWorkCat(x.category)) iv.push([Math.max(a, x.startMin), Math.min(b, x.endMin)]); });
+    iv.sort((p, q) => p[0] - q[0]);
+    let t = 0, cs = -1, ce = -1;
+    iv.forEach(([p, q]) => { if (q <= p) return; if (p > ce) { if (ce > cs) t += ce - cs; cs = p; ce = q; } else ce = Math.max(ce, q); });
+    if (ce > cs) t += ce - cs;
+    return t;
+  };
+  const clock = (gm) => { const hh = Math.floor(gm / 60 + CONFIG.DAY_START_HOUR) % 24; return `${String(hh).padStart(2,'0')}:${String(gm % 60).padStart(2,'0')}`; };
+
   for (let h = CONFIG.DAY_START_HOUR; h <= CONFIG.DAY_END_HOUR - 1; h++) {
     const dispH = h % 24;
     const planText = plans[h] || '';
 
-    html += `<div class="pds-row">`;
+    const run = foldRuns.find(r => r[0] === h);
+    if (run) {
+      const len = (run[1] - run[0] + 1) * 60;
+      const rangeTxt = `${run[0] % 24}–${(run[1] + 1) % 24}시`;
+      if (!state.sleepUnfold) {
+        html += `<div class="pds-fold" data-fold="1"><span class="f-plan">수면</span><span class="f-time">${run[0] % 24}–${run[1] % 24}</span><span class="f-do">💤 ${rangeTxt} · ${Math.floor(len / 60)}시간 <em>▾ 펼치기</em></span></div>`;
+        h = run[1];
+        continue;
+      }
+      html += `<div class="pds-fold open" data-fold="0"><span class="f-plan"></span><span class="f-time"></span><span class="f-do">💤 수면 ${rangeTxt} <em>▴ 접기</em></span></div>`;
+    }
+    const didPlan = planText.trim() && workMinInHour(h) >= 30;
+
+    html += `<div class="pds-row" data-h="${h}">`;
     const isChecked = (state.hourChecks[ds] || {})[h] || false;
     const align = (state.hourAlign[ds] || {})[h] || 'left';
-    html += `<div class="pds-plan">`;
+    html += `<div class="pds-plan${planText.trim() ? ' has-plan' : ''}">`;
     html += `<span class="plan-cb ${isChecked ? 'checked' : ''}" data-hour="${h}"></span>`;
     if (state.todoAddMode) {
       // 📋 모드: input 대신 div로 렌더 (터치/클릭 완전 제어)
@@ -1099,6 +1227,7 @@ function renderDaily() {
       html += `<input type="text" data-hour="${h}" value="${escapeAttr(planText)}" placeholder="" style="text-align:${align};" />`;
     }
     html += `<div class="plan-todo-overlay" data-hour="${h}"></div>`;
+    if (didPlan) html += `<span class="plan-ok" title="이 시간에 작업 기록이 있어요">✓ 했음</span>`;
     html += `</div>`;
     
     const markerData = markers[h];
@@ -1242,6 +1371,11 @@ function renderDaily() {
     html += `</div></div>`;
   }
   gridEl.innerHTML = html;
+  gridEl.querySelectorAll('.pds-fold').forEach(f => {
+    f.onclick = () => { state.sleepUnfold = f.dataset.fold === '1'; renderDaily(); };
+  });
+  placeNowLine();
+  updateMobileTabCount();
   if (state.todoAddMode) gridEl.classList.add('todo-add-mode');
   if (state.workFocusMode) gridEl.classList.add('work-focus-mode');
   else gridEl.classList.remove('work-focus-mode');
@@ -1773,13 +1907,105 @@ function calcDayStats(date) {
 
 function renderStats() {
   const stats = calcDayStats(state.date);
-  const fmt = (m) => `${Math.floor(m/60)}:${String(m%60).padStart(2,'0')}`;
+  const fmt = (m) => `${Math.floor(m/60)}:${String(Math.round(m)%60).padStart(2,'0')}`;
   document.getElementById('s-work').textContent = stats.workMin > 0 ? fmt(stats.workMin) : '0:00';
   document.getElementById('s-distract').textContent = stats.distractMin > 0 ? fmt(stats.distractMin) : '0:00';
-  document.getElementById('s-focus').textContent = (stats.workMin + stats.distractMin > 0) 
+  document.getElementById('s-focus').textContent = (stats.workMin + stats.distractMin > 0)
     ? Math.round(stats.workMin / (stats.workMin + stats.distractMin) * 100) + '%' : '-';
   document.getElementById('s-sleep').textContent = stats.sleepMin > 0 ? fmt(stats.sleepMin) : '0:00';
+
+  const ds = fmtDate(state.date);
+  const todayKey = fmtDate(new Date(Date.now() - CONFIG.DAY_START_HOUR * 3600000));
+  const setSub = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+
+  // 이번 주 막대 (월~일) + 평균 비교
+  const mon = new Date(state.date); mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+  const week = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(mon); d.setDate(mon.getDate() + i);
+    const k = fmtDate(d);
+    week.push({ k, m: k <= todayKey ? (k === ds ? stats.workMin : calcDayStats(d).workMin) : 0, future: k > todayKey });
+  }
+  const mx = Math.max(60, ...week.map(w => w.m));
+  setSub('s-work-week', week.map(w =>
+    `<i class="${w.k === ds ? 'cur' : ''}${w.future ? ' fut' : ''}" style="height:${w.future ? 8 : Math.max(8, w.m / mx * 100)}%" title="${w.k.slice(5)} ${fmt(w.m)}"></i>`).join(''));
+  const others = week.filter(w => w.k !== ds && !w.future && w.m > 0);
+  if (others.length && ds <= todayKey) {
+    const avg = others.reduce((t, w) => t + w.m, 0) / others.length;
+    const diff = Math.round(stats.workMin - avg);
+    setSub('s-work-sub', `이번 주 평균 ${fmt(Math.round(avg))} · <b class="${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? '+' : '−'}${fmt(Math.abs(diff))}</b>`);
+  } else setSub('s-work-sub', '');
+
+  // 딴짓: 어디에 썼는지
+  const auto = state.autoLogs[ds] || [];
+  const dis = {};
+  auto.forEach(a => {
+    if (a.category !== 'distraction' && a.category !== 'distraction_comm') return;
+    const k = a.label || a.appName || '기타';
+    dis[k] = (dis[k] || 0) + (a.endMin - a.startMin);
+  });
+  setSub('s-distract-sub', Object.entries(dis).sort((x, y) => y[1] - x[1]).slice(0, 2)
+    .map(([k, m]) => `${escapeHtml(k)} ${fmt(Math.round(m))}`).join(' · '));
+
+  // 집중률: 가장 길게 이어서 한 작업 (5분 이내 끊김은 이어진 걸로)
+  const iv = [];
+  auto.forEach(a => { if (CONFIG.WORK_CATEGORIES.includes(a.category)) iv.push([a.startMin, a.endMin]); });
+  (state.manualBlocks[ds] || []).forEach(b => { if (CONFIG.WORK_CATEGORIES.includes(b.category)) iv.push([b.startMin, b.endMin]); });
+  iv.sort((p, q) => p[0] - q[0]);
+  let best = 0, cs = null, ce = null;
+  iv.forEach(([p, q]) => {
+    if (cs === null || p > ce + 5) { if (cs !== null) best = Math.max(best, ce - cs); cs = p; ce = q; }
+    else ce = Math.max(ce, q);
+  });
+  if (cs !== null) best = Math.max(best, ce - cs);
+  setSub('s-focus-sub', best >= 10 ? `가장 긴 몰입 ${fmt(Math.round(best))}` : '');
+
+  // 수면: 언제 자고 일어났는지
+  const y = new Date(state.date); y.setDate(y.getDate() - 1);
+  const sl = [];
+  (state.manualBlocks[fmtDate(y)] || []).forEach(b => { if (b.category === '수면' && b.endMin > 780) sl.push([Math.max(b.startMin, 780) - 1440, b.endMin - 1440]); });
+  (state.manualBlocks[ds] || []).forEach(b => { if (b.category === '수면' && b.startMin < 360) sl.push([b.startMin, Math.min(b.endMin, 360)]); });
+  if (sl.length) {
+    const st = Math.min(...sl.map(x => x[0])), en = Math.max(...sl.map(x => x[1]));
+    const clk = (gm) => { const t = ((gm % 1440) + 1440) % 1440; const hh = (Math.floor(t / 60) + CONFIG.DAY_START_HOUR) % 24; return `${String(hh).padStart(2,'0')}:${String(t % 60).padStart(2,'0')}`; };
+    setSub('s-sleep-sub', `${clk(st)} → ${clk(en)}`);
+  } else setSub('s-sleep-sub', '');
 }
+
+// 오늘이면 시간표에 지금 시각 빨간 선
+function placeNowLine() {
+  const grid = document.getElementById('pds-grid');
+  if (!grid) return;
+  grid.querySelectorAll('.now-line').forEach(n => n.remove());
+  const now = new Date();
+  const todayKey = fmtDate(new Date(now.getTime() - CONFIG.DAY_START_HOUR * 3600000));
+  if (state.view !== 'daily' || fmtDate(state.date) !== todayKey) return;
+  let h = now.getHours(); if (h < CONFIG.DAY_START_HOUR) h += 24;
+  const row = grid.querySelector(`.pds-row[data-h="${h}"]`);
+  if (!row) return;
+  const line = document.createElement('div');
+  line.className = 'now-line';
+  line.style.top = (row.offsetTop + row.offsetHeight * now.getMinutes() / 60) + 'px';
+  line.dataset.t = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  grid.appendChild(line);
+}
+setInterval(placeNowLine, 60000);
+
+// 모바일 탭: 시간표 / 할 일 / 요약
+function updateMobileTabCount() {
+  const ds = fmtDate(state.date);
+  const n = (state.todos[ds] || []).filter(t => !t.done).length +
+    ((state.workTasks || {})[ds] || []).filter(w => !w.done && !String(w.text).startsWith('📅')).length;
+  const el = document.getElementById('m-tab-n');
+  if (el) el.textContent = n ? n : '';
+}
+document.addEventListener('click', (e) => {
+  const t = e.target.closest && e.target.closest('#m-tabs span');
+  if (!t) return;
+  document.querySelectorAll('#m-tabs span').forEach(x => x.classList.toggle('on', x === t));
+  document.getElementById('daily-grid').dataset.tab = t.dataset.t;
+  if (t.dataset.t === 'grid') placeNowLine();
+});
 
 function calcSleepWindow(date) {
   let total = 0;
@@ -1971,7 +2197,21 @@ function renderAutoTop3() {
   `;
   }).join('');
 
-  el.innerHTML = rowHtml(top3) +
+  // 도넛: 상위 4개 + 나머지
+  const total = sorted.reduce((t, [, v]) => t + v.min, 0) || 1;
+  const parts = sorted.slice(0, 4).map(([k, v]) => ({ k, v: v.min, c: CONFIG.CATEGORIES[v.category] || CONFIG.CATEGORIES[k] || '#9CA3AF' }));
+  const restSec = sorted.slice(4).reduce((t, [, v]) => t + v.min, 0);
+  if (restSec > 0) parts.push({ k: '기타', v: restSec, c: '#D1D5DB' });
+  let off = 25;
+  const arcs = parts.map(p => {
+    const len = p.v / total * 100;
+    const a = `<circle cx="21" cy="21" r="15.9" fill="none" stroke="${p.c}" stroke-width="6" stroke-dasharray="${len.toFixed(2)} ${(100 - len).toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"/>`;
+    off -= len; return a;
+  }).join('');
+  const donut = `<div class="donut"><svg viewBox="0 0 42 42" width="84" height="84"><circle cx="21" cy="21" r="15.9" fill="none" stroke="#F1EFEA" stroke-width="6"/>${arcs}</svg>
+    <div class="donut-total"><b>${fmt(total)}</b><span>기록된 시간</span></div></div>`;
+
+  el.innerHTML = donut + rowHtml(top3) +
     (rest.length ? `
       <div id="auto-rest" style="display: ${isExpanded ? 'block' : 'none'};">
         ${rowHtml(rest)}
