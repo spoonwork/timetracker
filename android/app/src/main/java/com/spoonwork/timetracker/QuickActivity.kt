@@ -56,7 +56,8 @@ class QuickActivity : Activity() {
     private lateinit var gcalCheck: android.widget.CheckBox
     private var sheetMode = 1          // 일정 → 작업 스프레드: 0 안 함, 1 '📅 스케쥴'만, 2 내용 공개
     private lateinit var sheetRadios: List<android.widget.RadioButton>
-    private lateinit var wtCheck: android.widget.CheckBox         // 할 일: 작업 스프레드에도
+    private lateinit var todoRadios: List<android.widget.RadioButton>   // 할 일 → 작업 스프레드: 0 안 적음, 1 📅 스케쥴로만, 2 내용 공개
+    private var todoSheet = 0
     private lateinit var planEdit: EditText
     private lateinit var paneTodo: LinearLayout
     private lateinit var todoEdit: EditText
@@ -252,13 +253,21 @@ class QuickActivity : Activity() {
             setOnEditorActionListener { _, _, _ -> save(); true }
         }
         paneTodo.addView(row("할 일", todoEdit))
-        wtCheck = android.widget.CheckBox(this).apply {
-            text = "작업 스프레드에도 (직원 공유)"
-            textSize = 13f
-            isChecked = false
-            setTextColor(textMain)
+        paneTodo.addView(label("작업 스프레드(슾)에", 12f).apply { setPadding(dp(52), dp(6), 0, 0) })
+        val trg = android.widget.RadioGroup(this).apply { orientation = android.widget.RadioGroup.HORIZONTAL }
+        todoRadios = listOf("안 적음", "📅 스케쥴로만", "내용 공개").mapIndexed { i, t ->
+            android.widget.RadioButton(this).apply {
+                id = 710 + i
+                text = t
+                textSize = 13f
+                setTextColor(textMain)
+                setOnClickListener { todoSheet = i }
+            }
         }
-        paneTodo.addView(wtCheck, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+        todoRadios.forEach { trg.addView(it) }
+        todoSheet = Data.prefs(this).getInt("todo_sheet", 0)
+        todoRadios[todoSheet].isChecked = true
+        paneTodo.addView(trg, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(48) })
         root.addView(paneTodo)
 
@@ -336,8 +345,8 @@ class QuickActivity : Activity() {
                     intent.removeExtra("edit")
                     todoEdit.setText(e)
                     todoEdit.setSelection(e.length)
-                    wtCheck.isChecked = editWork
-                    wtCheck.isEnabled = false
+                    todoRadios[if (editWork) 2 else if (Data.schedLinked(this, day, e)) 1 else 0].isChecked = true
+                    todoRadios.forEach { it.isEnabled = false }
                     status.text = if (editWork) "작업 스프레드 할 일 고치는 중 (스프레드에도 반영)" else "할 일 고치는 중"
                 }
                 todoEdit.requestFocus()
@@ -640,15 +649,26 @@ class QuickActivity : Activity() {
                 val old = editTodo
                 if (old != null) {
                     editTodo = null
-                    wtCheck.isEnabled = true
+                    todoRadios.forEach { it.isEnabled = true }
+                    todoRadios[todoSheet].isChecked = true
                     if (old != text) {
                         if (editWork) commit("고쳤어요 (스프레드에도)", JSONArray().put(Data.op("wt_edit", day).put("old", old).put("text", text)))
                         else commit("고쳤어요", JSONArray().put(Data.op("todo_edit", day).put("old", old).put("text", text)))
                     }
                     return
                 }
-                if (wtCheck.isChecked) commit("작업 스프레드에 추가", JSONArray().put(Data.op("wt_add", day).put("text", text)))
-                else commit("할 일 추가", JSONArray().put(Data.op("todo_add", day).put("text", text)))
+                Data.prefs(this).edit().putInt("todo_sheet", todoSheet).apply()
+                when (todoSheet) {
+                    2 -> commit("작업 스프레드에 추가", JSONArray().put(Data.op("wt_add", day).put("text", text)))
+                    1 -> {
+                        // 내 할 일에는 내용, 스프레드에는 '📅 스케쥴'만
+                        Data.setSchedLink(this, day, text, true)
+                        commit("할 일 추가 (스프레드엔 📅 스케쥴)", JSONArray()
+                            .put(Data.op("todo_add", day).put("text", text))
+                            .put(Data.op("wt_add", day).put("text", Data.SCHED)))
+                    }
+                    else -> commit("할 일 추가", JSONArray().put(Data.op("todo_add", day).put("text", text)))
+                }
             }
         }
     }

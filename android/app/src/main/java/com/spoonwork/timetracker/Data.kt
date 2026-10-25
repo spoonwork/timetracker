@@ -202,8 +202,34 @@ object Data {
     // ---------------- 한 번에 고치기 (Apps Script ops) ----------------
     fun op(type: String, day: String): JSONObject = JSONObject().put("t", type).put("d", day)
 
+    // ---- 할 일 ↔ 작업 스프레드 '📅 스케쥴' 연결 (내용은 숨김) ----
+    const val SCHED = "📅 스케쥴"
+    private fun tlnkKey(day: String, text: String) = "tlnk_${day}_$text"
+    fun schedLinked(c: Context, day: String, text: String) = prefs(c).getBoolean(tlnkKey(day, text), false)
+    fun setSchedLink(c: Context, day: String, text: String, on: Boolean) {
+        val e = prefs(c).edit()
+        if (on) e.putBoolean(tlnkKey(day, text), true) else e.remove(tlnkKey(day, text))
+        e.apply()
+    }
+    /** 할 일 체크/지우기/고치기 때 연결된 '📅 스케쥴' 칸도 같이 */
+    fun schedOpsFor(c: Context, o: JSONObject): JSONObject? {
+        val day = o.optString("d"); val t = o.optString("t")
+        val text = if (t == "todo_edit") o.optString("old") else o.optString("text")
+        if (!schedLinked(c, day, text)) return null
+        return when (t) {
+            "todo_set" -> op("wt_set", day).put("text", SCHED).put("done", o.optBoolean("done"))
+            "todo_del" -> { setSchedLink(c, day, text, false); op("wt_del", day).put("text", SCHED) }
+            "todo_edit" -> { setSchedLink(c, day, text, false); setSchedLink(c, day, o.optString("text"), true); null }
+            else -> null
+        }
+    }
+
     /** 시트에 바로 적용 (한 번 왕복) */
     fun sendOps(c: Context, ops: JSONArray) {
+        for (i in 0 until ops.length()) {
+            val o = ops.optJSONObject(i) ?: continue
+            if (o.optString("t").startsWith("todo_")) schedOpsFor(c, o)?.let { ops.put(it) }
+        }
         val r = JSONObject(httpPost(url(c), JSONObject().put("ops", ops).toString()))
         if (!r.optBoolean("ok")) {
             val err = r.optString("error", "저장 실패")
