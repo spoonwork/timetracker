@@ -136,7 +136,8 @@ object Art {
         val ch = (Hc - hh) / rows
         val maxW = workMax(days, cells.filter { inMonth(it) })
         val items = items(days, events, cells.first(), cells.last())
-        val laneTop = 24 * u
+        val laneTop = 28 * u
+        val dayColors = cache?.optJSONObject("dayColors")
         val laneH = 11.5f * u
         val maxLanes = maxOf(0, ((ch - laneTop - 2 * u) / laneH).toInt())
 
@@ -161,32 +162,45 @@ object Art {
                 p.textSize = 11.5f * u
                 p.textAlign = Paint.Align.CENTER
                 val cx = x + cw / 2
+                // 작업 캘린더 색 줄 (숫자 위)
+                val dc = dayColors?.optString(ds, "") ?: ""
+                if (dc.startsWith("#")) {
+                    try {
+                        p.color = Color.parseColor(dc)
+                        if (!cur) p.alpha = 90
+                        c.drawRoundRect(RectF(x + 3 * u, y + 2 * u, x + cw - 3 * u, y + 4.5f * u), u, u, p)
+                        p.alpha = 255
+                    } catch (_: Exception) {}
+                }
+                p.typeface = Typeface.DEFAULT_BOLD
+                p.textSize = 11.5f * u
+                p.textAlign = Paint.Align.CENTER
                 if (ds == todayDs) {
                     p.color = ACCENT
-                    c.drawCircle(cx - 5 * u, y + 8.5f * u, 8 * u, p)
+                    c.drawCircle(cx - 5 * u, y + 12.5f * u, 8 * u, p)
                     numColor = Color.WHITE
                 }
                 p.color = numColor
-                c.drawText(dayNum, cx - 5 * u, y + 12.5f * u, p)
+                c.drawText(dayNum, cx - 5 * u, y + 16.5f * u, p)
                 // 일진 (숫자 오른쪽 작게)
                 p.typeface = Typeface.DEFAULT
                 p.textSize = 6.5f * u
                 p.textAlign = Paint.Align.LEFT
                 p.color = if (cur) sub else faint
-                c.drawText(Cal.ganji(ds), cx + 4.5f * u, y + 12 * u, p)
+                c.drawText(Cal.ganji(ds), cx + 4.5f * u, y + 16 * u, p)
                 // 작업 막대 + 수면 막대
                 val day = days?.optJSONObject(ds)
                 val w = day?.optInt("w") ?: 0
                 if (w > 0 && cur) {
                     p.color = WORK
                     val len = (cw - 6 * u) * minOf(1f, w.toFloat() / maxW)
-                    c.drawRoundRect(RectF(x + 3 * u, y + 17 * u, x + 3 * u + maxOf(len, 2 * u), y + 19.5f * u), u, u, p)
+                    c.drawRoundRect(RectF(x + 3 * u, y + 21 * u, x + 3 * u + maxOf(len, 2 * u), y + 23.5f * u), u, u, p)
                 }
                 val s = day?.optInt("s") ?: 0
                 if (s > 0 && cur) {
                     p.color = Data.color("수면")
                     val len = (cw - 6 * u) * minOf(1f, s / 600f)
-                    c.drawRoundRect(RectF(x + 3 * u, y + 20.5f * u, x + 3 * u + len, y + 22 * u), u, u, p)
+                    c.drawRoundRect(RectF(x + 3 * u, y + 24.5f * u, x + 3 * u + len, y + 26 * u), u, u, p)
                 }
             }
 
@@ -310,7 +324,7 @@ object Art {
     // ================= 위클리 =================
     fun week(
         startDs: String, todayDs: String, days: JSONObject?, events: List<Cal.Ev>,
-        dark: Boolean, W: Int, H: Int
+        dark: Boolean, W: Int, H: Int, dayColors: JSONObject? = null
     ): Bitmap {
         val bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
@@ -333,6 +347,13 @@ object Art {
             if (ds == todayDs) {
                 p.color = if (dark) Color.parseColor("#1AFFFFFF") else Color.parseColor("#0F10B981")
                 c.drawRoundRect(RectF(x + u, 0f, x + cw - u, H.toFloat()), 6 * u, 6 * u, p)
+            }
+            val dc = dayColors?.optString(ds, "") ?: ""
+            if (dc.startsWith("#")) {
+                try {
+                    p.color = Color.parseColor(dc)
+                    c.drawRoundRect(RectF(x + 3 * u, 0.5f * u, x + cw - 3 * u, 3 * u), u, u, p)
+                } catch (_: Exception) {}
             }
             p.textAlign = Paint.Align.CENTER
             p.typeface = Typeface.DEFAULT

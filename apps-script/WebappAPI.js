@@ -226,6 +226,44 @@ function workByDay(ss, fromDs, toDs, todayDs, tz) {
   return out;
 }
 
+/** 작업 캘린더 날짜칸 색 → {yyyy-MM-dd: '#rrggbb'} (3시간 캐시)
+ *  녹색·파랑 = 작업일, 빨강 = 쉬는 날, 회색 = 콘티일. 노란색(오늘 표시)이면 옆 칸 색을 씀 */
+function workCalColors() {
+  if (!WORKCAL_ID || WORKCAL_ID.indexOf('__') === 0) return {};
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('workcal_v2');
+  if (hit) { try { return JSON.parse(hit); } catch (err) {} }
+  const out = {}, prio = {};
+  try {
+    const wb = SpreadsheetApp.openById(WORKCAL_ID);
+    const tz = wb.getSpreadsheetTimeZone();
+    wb.getSheets().forEach(function (sh) {
+      const mm = sh.getName().match(/^(?:\d{4}년\s*)?(\d{1,2})월$/);
+      if (!mm) return;
+      const tabMonth = +mm[1];
+      const nr = Math.min(sh.getLastRow(), 200), nc = Math.min(sh.getLastColumn(), 30);
+      if (nr < 1 || nc < 1) return;
+      const rng = sh.getRange(1, 1, nr, nc);
+      const disp = rng.getDisplayValues(), vals = rng.getValues(), bgs = rng.getBackgrounds();
+      for (let r = 0; r < nr; r++) for (let c = 0; c < nc; c++) {
+        const v = vals[r][c];
+        if (!(v instanceof Date) || !DATE_CELL_RE.test(disp[r][c])) continue;
+        let bg = String(bgs[r][c] || '').toLowerCase();
+        const next = c + 1 < nc ? String(bgs[r][c + 1] || '').toLowerCase() : '';
+        if (bg === '#ffd966') { if (!next || next === '#ffffff') continue; bg = next; }   // 노란 오늘 표시 / 제목칸
+        if (!bg || bg === '#ffffff') continue;
+        const ds = Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+        const p = (v.getMonth() + 1 === tabMonth) ? 2 : 1;      // 그 달 탭에 있는 날짜를 우선
+        if (!prio[ds] || p >= prio[ds]) { out[ds] = bg; prio[ds] = p; }
+      }
+    });
+  } catch (err) {
+    return { _error: String(err) };
+  }
+  try { cache.put('workcal_v2', JSON.stringify(out), 10800); } catch (err) {}
+  return out;
+}
+
 function buildWidgetSummary(ss, date, fromDs, toDs) {
   const tz = ss.getSpreadsheetTimeZone();
   const todayDs = Utilities.formatDate(new Date(Date.now() - WIDGET_DAY_START * 3600 * 1000), tz, 'yyyy-MM-dd');
@@ -262,6 +300,12 @@ function buildWidgetSummary(ss, date, fromDs, toDs) {
     checks: (app.hourChecks || {})[date] || {},
     todos: (app.todos || {})[date] || [],
     days: days,
+    dayColors: (function () {
+      const all = workCalColors(), sel = {};
+      if (all._error) return { _error: all._error };
+      Object.keys(all).forEach(function (k) { if (k >= fromDs && k <= toDs) sel[k] = all[k]; });
+      return sel;
+    })(),
     timestamp: new Date().toISOString(),
   };
 }

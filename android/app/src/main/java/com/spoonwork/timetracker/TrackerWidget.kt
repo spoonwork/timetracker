@@ -201,7 +201,7 @@ class TrackerWidget : AppWidgetProvider() {
                     } else {
                         val ws = Data.weekStart(today)
                         Art.week(ws, Data.fmt(java.util.Calendar.getInstance()), days,
-                            Cal.events(context, ws, Data.shift(ws, 6)), light, bw, bh)
+                            Cal.events(context, ws, Data.shift(ws, 6)), light, bw, bh, cache?.optJSONObject("dayColors"))
                     }
                     rv.setImageViewBitmap(R.id.big, bmp)
                     rv.setOnClickPendingIntent(R.id.big, PendingIntent.getActivity(
