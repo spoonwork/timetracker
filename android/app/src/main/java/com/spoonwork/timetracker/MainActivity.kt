@@ -183,7 +183,8 @@ class MainActivity : Activity() {
                 p.edit().putInt(key, col).apply(); paint(); paintCustom()
                 TrackerWidget.render(applicationContext)
             } }
-            row.addView(custom, LinearLayout.LayoutParams(dp(34), dp(34)))
+            // 컬러 써클 버튼은 맨 앞에 (옆으로 밀지 않아도 보이게)
+            row.addView(custom, 0, LinearLayout.LayoutParams(dp(34), dp(34)).apply { marginEnd = dp(10) })
             paint(); paintCustom()
             root.addView(android.widget.HorizontalScrollView(this).apply { addView(row) })
             root.addView(gap(8))
