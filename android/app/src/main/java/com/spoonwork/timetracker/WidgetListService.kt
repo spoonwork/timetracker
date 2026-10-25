@@ -188,12 +188,15 @@ class WidgetListService : RemoteViewsService() {
                     rv.setViewVisibility(R.id.del, android.view.View.VISIBLE)
                     rv.setOnClickFillInIntent(R.id.del, Intent().putExtra("type", if (r.work) "wtdel" else "tdel")
                         .putExtra("text", r.text).putExtra("day", r.day))
+                    // 글자 누르면 고치기
+                    rv.setOnClickFillInIntent(R.id.text, Intent().putExtra("type", "tedit").putExtra("text", r.text)
+                        .putExtra("day", r.day).putExtra("work", r.work))
                     if (r.work) {
-                        rv.setOnClickFillInIntent(R.id.row, Intent().putExtra("type", "wt").putExtra("text", r.text)
+                        rv.setOnClickFillInIntent(R.id.rcheck, Intent().putExtra("type", "wt").putExtra("text", r.text)
                             .putExtra("day", r.day).putExtra("done", !r.done))
                         return rv
                     }
-                    rv.setOnClickFillInIntent(R.id.row, Intent().putExtra("type", "todo").putExtra("text", r.text).putExtra("day", r.day))
+                    rv.setOnClickFillInIntent(R.id.lead, Intent().putExtra("type", "todo").putExtra("text", r.text).putExtra("day", r.day))
                     return rv
                 }
                 else -> {

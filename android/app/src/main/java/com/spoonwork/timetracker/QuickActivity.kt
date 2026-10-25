@@ -39,6 +39,8 @@ class QuickActivity : Activity() {
     private var peM = 0
     private var pendingCal: (() -> Unit)? = null
     private var editHour: Int? = null       // 고치는 중인 기존 일정의 시각
+    private var editTodo: String? = null    // 고치는 중인 할 일
+    private var editWork = false
     private var app: JSONObject? = null
     private var touched = false
 
@@ -326,6 +328,18 @@ class QuickActivity : Activity() {
             }
             "todo" -> {
                 day = intent.getStringExtra("day")?.takeIf { it.isNotEmpty() } ?: Data.trackerDay()
+                val e = intent.getStringExtra("edit")?.takeIf { it.isNotEmpty() }
+                if (e != null) {
+                    // 위젯에서 글자를 눌러 들어옴 → 고치기
+                    editTodo = e
+                    editWork = intent.getBooleanExtra("work", false)
+                    intent.removeExtra("edit")
+                    todoEdit.setText(e)
+                    todoEdit.setSelection(e.length)
+                    wtCheck.isChecked = editWork
+                    wtCheck.isEnabled = false
+                    status.text = if (editWork) "작업 스프레드 할 일 고치는 중 (스프레드에도 반영)" else "할 일 고치는 중"
+                }
                 todoEdit.requestFocus()
             }
         }
@@ -623,6 +637,16 @@ class QuickActivity : Activity() {
                 val text = todoEdit.text.toString().trim()
                 if (text.isEmpty()) return
                 todoEdit.setText("")
+                val old = editTodo
+                if (old != null) {
+                    editTodo = null
+                    wtCheck.isEnabled = true
+                    if (old != text) {
+                        if (editWork) commit("고쳤어요 (스프레드에도)", JSONArray().put(Data.op("wt_edit", day).put("old", old).put("text", text)))
+                        else commit("고쳤어요", JSONArray().put(Data.op("todo_edit", day).put("old", old).put("text", text)))
+                    }
+                    return
+                }
                 if (wtCheck.isChecked) commit("작업 스프레드에 추가", JSONArray().put(Data.op("wt_add", day).put("text", text)))
                 else commit("할 일 추가", JSONArray().put(Data.op("todo_add", day).put("text", text)))
             }

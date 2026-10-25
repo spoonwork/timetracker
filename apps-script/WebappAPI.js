@@ -558,6 +558,11 @@ function applyWidgetOps(ss, appSheet, ops) {
         const i = arr.findIndex(function (x) { return x.text === o.text; });
         if (i >= 0) arr.splice(i, 1);
         td[o.d] = arr;
+      } else if (o.t === 'todo_edit') {
+        const td = obj('todos'); const arr = td[o.d] || [];
+        const it = arr.find(function (x) { return x.text === o.old; });
+        if (it) it.text = o.text; else arr.push({ text: o.text, done: false });
+        td[o.d] = arr;
       } else if (o.t === 'todo_set') {
         const td = obj('todos'); const arr = td[o.d] || [];
         const it = arr.find(function (x) { return x.text === o.text; });

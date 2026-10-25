@@ -241,6 +241,16 @@ object Data {
                     }
                     td.put(d, out)
                 }
+                "todo_edit" -> {
+                    val td = objOf(app, "todos")
+                    val arr = td.optJSONArray(d) ?: JSONArray().also { td.put(d, it) }
+                    var hit = false
+                    for (j in 0 until arr.length()) {
+                        val x = arr.optJSONObject(j) ?: continue
+                        if (x.optString("text") == o.optString("old")) { x.put("text", o.optString("text")); hit = true; break }
+                    }
+                    if (!hit) arr.put(JSONObject().put("text", o.optString("text")).put("done", false))
+                }
                 "plan_set" -> {
                     val hp = objOf(app, "hourPlans")
                     val day = hp.optJSONObject(d) ?: JSONObject().also { hp.put(d, it) }

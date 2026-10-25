@@ -59,6 +59,14 @@ class ActionActivity : Activity() {
                         TrackerWidget.refresh(ctx)
                     }.start()
                 }
+                "tedit" -> startActivity(
+                    Intent(this, QuickActivity::class.java)
+                        .putExtra("mode", "todo")
+                        .putExtra("day", intent.getStringExtra("day") ?: "")
+                        .putExtra("edit", intent.getStringExtra("text") ?: "")
+                        .putExtra("work", intent.getBooleanExtra("work", false))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                )
                 "wfilter" -> {
                     val wid = intent.getIntExtra("wid", -1)
                     val pr = Data.prefs(applicationContext)

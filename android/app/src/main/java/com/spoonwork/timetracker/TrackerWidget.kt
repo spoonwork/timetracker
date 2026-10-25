@@ -325,16 +325,27 @@ class TrackerWidget : AppWidgetProvider() {
                 for (r in 0..6) rv.setViewVisibility(res.getIdentifier("hrow$r", "id", pkg),
                     if (r <= Art.lastRows) android.view.View.VISIBLE else android.view.View.GONE)
                 for (r in 1..6) {
-                    val l = res.getIdentifier("hl$r", "id", pkg)
+                    val la = res.getIdentifier("hla$r", "id", pkg)
+                    val lb = res.getIdentifier("hlb$r", "id", pkg)
+                    val lc = res.getIdentifier("hlc$r", "id", pkg)
                     val rr = res.getIdentifier("hr$r", "id", pkg)
                     val td = Art.lastTodos.getOrNull(r - 1)
                     if (td != null) {
+                        // 체크박스 자리 = 체크, 글자 = 그 날 데일리로
                         val i = Intent(context, ActionActivity::class.java)
-                        if (td.optBoolean("_wt")) i.putExtra("type", "wt").putExtra("text", td.optString("text"))
+                        val wt = td.optBoolean("_wt")
+                        if (wt) i.putExtra("type", "wt").putExtra("text", td.optString("text"))
                             .putExtra("day", today).putExtra("done", !td.optBoolean("done"))
                         else i.putExtra("type", "todo").putExtra("text", td.optString("text")).putExtra("day", today)
-                        rv.setOnClickPendingIntent(l, PendingIntent.getActivity(context, 7000 + (id % 1000) * 16 + r, i,
-                            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+                        val toggle = PendingIntent.getActivity(context, 7000 + (id % 1000) * 16 + r, i,
+                            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+                        val daily = PendingIntent.getBroadcast(context, 7200 + (id % 1000) * 16 + r,
+                            Intent(context, TrackerWidget::class.java).setAction(ACTION_PICK)
+                                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).putExtra("day", today),
+                            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+                        rv.setOnClickPendingIntent(la, if (wt) daily else toggle)
+                        rv.setOnClickPendingIntent(lb, daily)
+                        rv.setOnClickPendingIntent(lc, if (wt) toggle else daily)
                     }
                     val it = Art.lastItems.getOrNull(r - 1)
                     if (it != null) {
