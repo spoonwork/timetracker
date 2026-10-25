@@ -250,6 +250,16 @@
   }
   .pds-cell:first-child { border-left: 0; }
   .pds-cell:hover { outline: 1px solid var(--line); }
+  /* 칠한 칸은 칸 사이 선 없이 이어지게 (위아래 시간 줄까지) */
+  .pds-cell.has-color {
+    border-left-color: transparent;
+    margin-bottom: -1px; min-height: 27px; max-height: 27px;
+    position: relative; z-index: 1;
+  }
+  .pds-cell.has-color + .pds-cell:not(.has-color) { border-left-color: var(--line-soft); }
+  /* 빈 칸 10분 선은 아주 흐리게 */
+  .pds-cell:not(.has-color) { border-left-color: rgba(0,0,0,0.035); }
+  .pds-cell:first-child { border-left-color: transparent; }
 
   /* 위클리 */
   .weekly-grid { display: grid; grid-template-columns: 200px 1fr; gap: 16px; }
