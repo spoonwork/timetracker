@@ -3,12 +3,15 @@
  * Google Sheets ↔ 웹앱 양방향 동기화
  */
 
-// 이 스크립트가 붙어 있는 시트를 사용 (공개 저장소라 시트 ID는 코드에 넣지 않음)
+// 시트 ID는 배포할 때 자동으로 채워짐 (공개 저장소라 코드에는 넣지 않음)
+const SPREADSHEET_ID = '__SHEET_ID__';
+
 function openSS() {
-  const active = SpreadsheetApp.getActiveSpreadsheet();
-  if (active) return active;
-  const id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
-  return SpreadsheetApp.openById(id);
+  try {
+    const active = SpreadsheetApp.getActiveSpreadsheet();
+    if (active) return active;
+  } catch (err) {}
+  return SpreadsheetApp.openById(SPREADSHEET_ID);
 }
 
 // 웹앱 데이터 저장용 시트
