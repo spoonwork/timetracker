@@ -141,16 +141,20 @@ class TrackerWidget : AppWidgetProvider() {
             for (id in ids) {
                 val view = Data.viewFor(context, id)
                 val stats = statsFor(view)
-                val rv = RemoteViews(context.packageName, R.layout.widget)
+                val isDay = view == "day"
+                // 달력은 목록이 없는 별도 레이아웃 (목록이 겹쳐 보이지 않게)
+                val rv = RemoteViews(context.packageName, if (isDay) R.layout.widget else R.layout.widget_cal)
                 rv.setInt(R.id.bg, "setColorFilter", if (dark) Color.parseColor("#111827") else Color.WHITE)
                 rv.setInt(R.id.bg, "setImageAlpha", alpha)
                 rv.setTextColor(R.id.title, mainColor)
                 rv.setTextColor(R.id.stats, subColor)
                 rv.setTextColor(R.id.btn_refresh, subColor)
-                rv.setTextColor(R.id.empty, subColor)
-                for (chip in intArrayOf(R.id.btn_sleep, R.id.btn_block, R.id.btn_plan, R.id.btn_todo)) {
-                    rv.setInt(chip, "setBackgroundResource", if (light) R.drawable.chip_bg_dark else R.drawable.chip_bg)
-                    rv.setTextColor(chip, if (light) Color.WHITE else Color.parseColor("#374151"))
+                if (isDay) {
+                    rv.setTextColor(R.id.empty, subColor)
+                    for (chip in intArrayOf(R.id.btn_sleep, R.id.btn_block, R.id.btn_plan, R.id.btn_todo)) {
+                        rv.setInt(chip, "setBackgroundResource", if (light) R.drawable.chip_bg_dark else R.drawable.chip_bg)
+                        rv.setTextColor(chip, if (light) Color.WHITE else Color.parseColor("#374151"))
+                    }
                 }
                 val tc = Data.toCal(today)
                 val title = when (view) {
@@ -162,13 +166,14 @@ class TrackerWidget : AppWidgetProvider() {
                 rv.setTextViewText(R.id.stats,
                     (if (loading && cache == null) "불러오는 중…" else stats) + if (hasUpdate) "  ⬆새 버전" else "")
                 rv.setTextViewText(R.id.btn_refresh, if (loading) "⋯" else "↻")
-                rv.setImageViewBitmap(R.id.strip, strip)
-
-                rv.setOnClickPendingIntent(R.id.btn_sleep, quick(context, "sleep", 1))
-                rv.setOnClickPendingIntent(R.id.btn_block, quick(context, "block", 2))
-                rv.setOnClickPendingIntent(R.id.btn_plan, quick(context, "plan", 3))
-                rv.setOnClickPendingIntent(R.id.btn_todo, quick(context, "todo", 4))
-                rv.setOnClickPendingIntent(R.id.strip, quick(context, "block", 5))
+                if (isDay) {
+                    rv.setImageViewBitmap(R.id.strip, strip)
+                    rv.setOnClickPendingIntent(R.id.btn_sleep, quick(context, "sleep", 1))
+                    rv.setOnClickPendingIntent(R.id.btn_block, quick(context, "block", 2))
+                    rv.setOnClickPendingIntent(R.id.btn_plan, quick(context, "plan", 3))
+                    rv.setOnClickPendingIntent(R.id.btn_todo, quick(context, "todo", 4))
+                    rv.setOnClickPendingIntent(R.id.strip, quick(context, "block", 5))
+                }
                 rv.setOnClickPendingIntent(
                     R.id.title,
                     PendingIntent.getBroadcast(
@@ -178,20 +183,13 @@ class TrackerWidget : AppWidgetProvider() {
                     )
                 )
 
-                rv.setViewVisibility(R.id.chips, if (view == "day") android.view.View.VISIBLE else android.view.View.GONE)
-                if (view == "day") {
-                    rv.setViewVisibility(R.id.strip, android.view.View.VISIBLE)
-                    rv.setViewVisibility(R.id.list, android.view.View.VISIBLE)
+                if (isDay) {
                     rv.setViewVisibility(R.id.big, android.view.View.GONE)
                 } else {
-                    rv.setViewVisibility(R.id.strip, android.view.View.GONE)
-                    rv.setViewVisibility(R.id.list, android.view.View.GONE)
-                    rv.setViewVisibility(R.id.empty, android.view.View.GONE)
-                    rv.setViewVisibility(R.id.big, android.view.View.VISIBLE)
                     val opts = mgr.getAppWidgetOptions(id)
                     val dens = context.resources.displayMetrics.density
-                    val wDp = maxOf(200, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 300)) - 28
-                    val hDp = maxOf(160, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 340)) - 66
+                    val wDp = maxOf(200, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 300)) - 24
+                    val hDp = maxOf(160, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 340)) - 60
                     val scale = minOf(dens, 1000f / wDp)
                     val bw = (wDp * scale).toInt()
                     val bh = (maxOf(120, hDp) * scale).toInt()
@@ -226,16 +224,15 @@ class TrackerWidget : AppWidgetProvider() {
                     .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
                 svc.data = Uri.parse(svc.toUri(Intent.URI_INTENT_SCHEME))
                 // 달력 보기에서는 목록을 연결하지 않음 (연결하면 목록이 다시 보이게 됨)
-                if (view == "day") {
+                if (isDay) {
                     rv.setRemoteAdapter(R.id.list, svc)
                     rv.setEmptyView(R.id.list, R.id.empty)
+                    val template = PendingIntent.getActivity(
+                        context, 10, Intent(context, ActionActivity::class.java),
+                        PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                    )
+                    rv.setPendingIntentTemplate(R.id.list, template)
                 }
-
-                val template = PendingIntent.getActivity(
-                    context, 10, Intent(context, ActionActivity::class.java),
-                    PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                )
-                rv.setPendingIntentTemplate(R.id.list, template)
 
                 mgr.updateAppWidget(id, rv)
             }
