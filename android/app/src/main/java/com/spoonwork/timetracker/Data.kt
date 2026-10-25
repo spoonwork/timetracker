@@ -178,9 +178,9 @@ object Data {
     }
 
     /** 위젯용 오늘 요약 (Apps Script mode=widget) */
-    fun fetchSummary(c: Context, date: String, from: String = date, to: String = date): JSONObject {
+    fun fetchSummary(c: Context, date: String, from: String = date, to: String = date, fresh: Boolean = false): JSONObject {
         val j = JSONObject(httpGet(url(c) + "?mode=widget&date=" + URLEncoder.encode(date, "UTF-8") +
-            "&from=" + from + "&to=" + to))
+            "&from=" + from + "&to=" + to + (if (fresh) "&fresh=1" else "")))
         if (!j.optBoolean("ok")) throw IOException(j.optString("error", "오류"))
         if (!j.has("blocks")) throw IOException("Apps Script 새 버전 배포 필요")
         return j

@@ -13,6 +13,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.net.Uri
 import android.widget.RemoteViews
+import android.widget.Toast
 import org.json.JSONArray
 import java.util.Calendar
 
@@ -27,6 +28,9 @@ class TrackerWidget : AppWidgetProvider() {
         super.onReceive(context, intent)
         when (intent.action) {
             ACTION_REFRESH -> {
+                // ↻ 직접 누르면 작업 캘린더 색까지 새로 읽기
+                Data.prefs(context).edit().putBoolean("fresh_next", true).apply()
+                Toast.makeText(context.applicationContext, "동기화 중…", Toast.LENGTH_SHORT).show()
                 refresh(context)
                 render(context)
             }
@@ -113,7 +117,9 @@ class TrackerWidget : AppWidgetProvider() {
                         from = minOf(from, ws); to = maxOf(to, Data.shift(ws, 6))
                     }
                 }
-                val j = Data.fetchSummary(ctx, today, from, to)
+                val fresh = pr0.getBoolean("fresh_next", false)
+                val j = Data.fetchSummary(ctx, today, from, to, fresh)
+                if (fresh) pr0.edit().remove("fresh_next").apply()
                 val pr = Data.prefs(ctx)
                 if (System.currentTimeMillis() - pr.getLong("latest_at", 0L) > 6 * 3600_000L) {
                     pr.edit().putInt("latest", Updater.latestVersion())
@@ -315,7 +321,7 @@ class TrackerWidget : AppWidgetProvider() {
                 val week = arrayOf("일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일")
                 val now = java.util.Calendar.getInstance()
                 rv.setTextViewText(R.id.clock_date, "${now.get(java.util.Calendar.MONTH) + 1}월 ${now.get(java.util.Calendar.DAY_OF_MONTH)}일 " +
-                    week[now.get(java.util.Calendar.DAY_OF_WEEK) - 1] + "  ·  " + Cal.ganji(nowDs) + "日")
+                    week[now.get(java.util.Calendar.DAY_OF_WEEK) - 1] + "  ·  " + Cal.monthGanji(nowDs) + "月 " + Cal.ganji(nowDs) + "日")
             }
 
             // 할 일 / 오늘 일정 (이번 달 먼슬리에서만)

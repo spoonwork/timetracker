@@ -48,7 +48,7 @@ function doGet(e) {
 
     // ?mode=widget&date=YYYY-MM-DD → 폰 위젯용 요약
     if (e && e.parameter && e.parameter.mode === 'widget') {
-      return makeJsonResponse(buildWidgetSummary(ss, e.parameter.date, e.parameter.from, e.parameter.to));
+      return makeJsonResponse(buildWidgetSummary(ss, e.parameter.date, e.parameter.from, e.parameter.to, e.parameter.fresh === '1'));
     }
 
     // ?mode=appdata 이면 logs/수동입력은 건너뜀 (PC 타이머 위젯용, 가볍게)
@@ -408,7 +408,7 @@ function applyWorkOp(wb, o) {
   }
 }
 
-function buildWidgetSummary(ss, date, fromDs, toDs) {
+function buildWidgetSummary(ss, date, fromDs, toDs, fresh) {
   const tz = ss.getSpreadsheetTimeZone();
   const todayDs = Utilities.formatDate(new Date(Date.now() - WIDGET_DAY_START * 3600 * 1000), tz, 'yyyy-MM-dd');
   if (!date) date = todayDs;
@@ -453,7 +453,7 @@ function buildWidgetSummary(ss, date, fromDs, toDs) {
     todos: (app.todos || {})[date] || [],
     days: days,
     dayColors: (function () {
-      const all = workCalColors(), sel = {};
+      const all = workCalColors(fresh), sel = {};
       if (all._error) return { _error: all._error };
       Object.keys(all).forEach(function (k) { if (k >= fromDs && k <= toDs) sel[k] = all[k]; });
       return sel;

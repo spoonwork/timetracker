@@ -186,6 +186,27 @@ object Cal {
         return GAN[idx % 10] + JI[idx % 12]
     }
 
+    /** 월주 (절기 기준, 웹앱 getMonthGanji 와 같은 계산) */
+    private val TERMS = arrayOf(intArrayOf(2, 4), intArrayOf(3, 6), intArrayOf(4, 5), intArrayOf(5, 6),
+        intArrayOf(6, 6), intArrayOf(7, 7), intArrayOf(8, 8), intArrayOf(9, 8), intArrayOf(10, 8),
+        intArrayOf(11, 8), intArrayOf(12, 7), intArrayOf(1, 6))
+    private val MONTH_JI = intArrayOf(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 1)
+
+    fun monthGanji(ds: String): String {
+        val p = ds.split("-").map { it.toInt() }
+        val y = p[0]; val m = p[1]; val d = p[2]
+        val sajuYear = if (m < 2 || (m == 2 && d < 4)) y - 1 else y
+        val yearGan = (((sajuYear - 1984) % 60 + 60) % 60) % 10
+        // 지금 날짜가 몇 번째 절기 뒤인지 (입춘=0 … 대설=10, 소한=11)
+        val term = when {
+            (m == 1 && d >= 6) || (m == 2 && d < 4) -> 11
+            m == 1 -> 10
+            else -> (10 downTo 0).first { i -> m > TERMS[i][0] || (m == TERMS[i][0] && d >= TERMS[i][1]) }
+        }
+        val gan = ((yearGan * 2 + 2) % 10 + term) % 10
+        return GAN[gan] + JI[MONTH_JI[term]]
+    }
+
     // ---------------- 공휴일 ----------------
     val HOLIDAYS = mapOf(
         "2025-12-25" to "크리스마스",

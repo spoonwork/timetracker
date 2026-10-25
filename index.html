@@ -902,6 +902,16 @@ function init() {
   render();
   syncFromSheets();
   setInterval(syncFromSheets, CONFIG.SYNC_INTERVAL_MS);
+  // 폰에서 고친 걸 바로 보도록: 이 탭으로 돌아오면 바로 받아오기
+  let lastFocusSync = 0;
+  const syncOnReturn = () => {
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - lastFocusSync < 20000) return;
+    lastFocusSync = Date.now();
+    syncFromSheets();
+  };
+  document.addEventListener('visibilitychange', syncOnReturn);
+  window.addEventListener('focus', syncOnReturn);
 }
 
 function bindUI() {
