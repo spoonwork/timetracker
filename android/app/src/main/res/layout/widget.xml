@@ -49,7 +49,7 @@
             android:textColor="#6B7280"
             android:textSize="20sp" />
 
-        <View
+        <TextView
             android:layout_width="0dp"
             android:layout_height="1dp"
             android:layout_weight="1" />
