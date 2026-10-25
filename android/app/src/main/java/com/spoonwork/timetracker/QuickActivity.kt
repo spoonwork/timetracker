@@ -58,6 +58,7 @@ class QuickActivity : Activity() {
     private lateinit var sheetRadios: List<android.widget.RadioButton>
     private lateinit var todoRadios: List<android.widget.RadioButton>   // 할 일 → 작업 스프레드: 0 안 적음, 1 📅 스케쥴로만, 2 내용 공개
     private var todoSheet = 0
+    private var editOrig = 0          // 고치기 시작할 때 스프레드 상태
     private lateinit var planEdit: EditText
     private lateinit var paneTodo: LinearLayout
     private lateinit var todoEdit: EditText
@@ -345,8 +346,10 @@ class QuickActivity : Activity() {
                     intent.removeExtra("edit")
                     todoEdit.setText(e)
                     todoEdit.setSelection(e.length)
-                    todoRadios[if (editWork) 2 else if (Data.schedLinked(this, day, e)) 1 else 0].isChecked = true
-                    todoRadios.forEach { it.isEnabled = false }
+                    // 스프레드 상태도 바꿀 수 있게 (예: 내용 공개 → 📅 스케쥴로만)
+                    editOrig = if (editWork) 2 else if (Data.schedLinked(this, day, e)) 1 else 0
+                    todoSheet = editOrig
+                    todoRadios[editOrig].isChecked = true
                     status.text = if (editWork) "작업 스프레드 할 일 고치는 중 (스프레드에도 반영)" else "할 일 고치는 중"
                 }
                 todoEdit.requestFocus()
@@ -649,12 +652,42 @@ class QuickActivity : Activity() {
                 val old = editTodo
                 if (old != null) {
                     editTodo = null
-                    todoRadios.forEach { it.isEnabled = true }
+                    val from = editOrig
+                    val to = todoSheet
+                    todoSheet = Data.prefs(this).getInt("todo_sheet", 0)
                     todoRadios[todoSheet].isChecked = true
-                    if (old != text) {
-                        if (editWork) commit("고쳤어요 (스프레드에도)", JSONArray().put(Data.op("wt_edit", day).put("old", old).put("text", text)))
-                        else commit("고쳤어요", JSONArray().put(Data.op("todo_edit", day).put("old", old).put("text", text)))
+                    val S = Data.SCHED
+                    val ops = JSONArray()
+                    when {
+                        from == to && old == text -> return
+                        from == to && from == 2 -> ops.put(Data.op("wt_edit", day).put("old", old).put("text", text))
+                        from == to -> ops.put(Data.op("todo_edit", day).put("old", old).put("text", text))
+                        from == 2 && to == 1 -> {
+                            Data.setSchedLink(this, day, text, true)
+                            ops.put(Data.op("wt_edit", day).put("old", old).put("text", S))
+                                .put(Data.op("todo_add", day).put("text", text))
+                        }
+                        from == 2 && to == 0 -> ops.put(Data.op("wt_del", day).put("text", old))
+                            .put(Data.op("todo_add", day).put("text", text))
+                        from == 0 && to == 1 -> {
+                            Data.setSchedLink(this, day, text, true)
+                            if (old != text) ops.put(Data.op("todo_edit", day).put("old", old).put("text", text))
+                            ops.put(Data.op("wt_add", day).put("text", S))
+                        }
+                        from == 0 && to == 2 -> ops.put(Data.op("todo_del", day).put("text", old))
+                            .put(Data.op("wt_add", day).put("text", text))
+                        from == 1 && to == 0 -> {
+                            Data.setSchedLink(this, day, old, false)
+                            if (old != text) ops.put(Data.op("todo_edit", day).put("old", old).put("text", text))
+                            ops.put(Data.op("wt_del", day).put("text", S))
+                        }
+                        from == 1 && to == 2 -> {
+                            Data.setSchedLink(this, day, old, false)
+                            ops.put(Data.op("todo_del", day).put("text", old))
+                                .put(Data.op("wt_edit", day).put("old", S).put("text", text))
+                        }
                     }
+                    if (ops.length() > 0) commit(if (from == to) "고쳤어요" else "고쳤어요 (스프레드도 바꿈)", ops)
                     return
                 }
                 Data.prefs(this).edit().putInt("todo_sheet", todoSheet).apply()
