@@ -31,8 +31,9 @@ class TrackerWidget : AppWidgetProvider() {
                 render(context)
             }
             ACTION_NEXT_VIEW -> {
-                val next = when (Data.view(context)) { "day" -> "week"; "week" -> "month"; else -> "day" }
-                Data.prefs(context).edit().putString("view", next).apply()
+                val wid = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
+                val next = when (Data.viewFor(context, wid)) { "day" -> "week"; "week" -> "month"; else -> "day" }
+                Data.prefs(context).edit().putString("view_$wid", next).apply()
                 render(context)
             }
         }
@@ -105,8 +106,7 @@ class TrackerWidget : AppWidgetProvider() {
             val loadingAt = prefs.getLong("loading_at", 0L)
             val loading = loadingAt > 0 && System.currentTimeMillis() - loadingAt < 60_000
 
-            val view = Data.view(context)
-            val stats = when {
+            fun statsFor(view: String): String = when {
                 cache != null && view == "month" -> {
                     val days = cache.optJSONObject("days")
                     var sum = 0
@@ -139,6 +139,8 @@ class TrackerWidget : AppWidgetProvider() {
             val alpha = Data.bgAlpha(context) * 255 / 100
 
             for (id in ids) {
+                val view = Data.viewFor(context, id)
+                val stats = statsFor(view)
                 val rv = RemoteViews(context.packageName, R.layout.widget)
                 rv.setInt(R.id.bg, "setColorFilter", if (dark) Color.parseColor("#111827") else Color.WHITE)
                 rv.setInt(R.id.bg, "setImageAlpha", alpha)
@@ -170,11 +172,13 @@ class TrackerWidget : AppWidgetProvider() {
                 rv.setOnClickPendingIntent(
                     R.id.title,
                     PendingIntent.getBroadcast(
-                        context, 1, Intent(context, TrackerWidget::class.java).setAction(ACTION_NEXT_VIEW),
+                        context, 1000 + id, Intent(context, TrackerWidget::class.java).setAction(ACTION_NEXT_VIEW)
+                            .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id),
                         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                     )
                 )
 
+                rv.setViewVisibility(R.id.chips, if (view == "day") android.view.View.VISIBLE else android.view.View.GONE)
                 if (view == "day") {
                     rv.setViewVisibility(R.id.strip, android.view.View.VISIBLE)
                     rv.setViewVisibility(R.id.list, android.view.View.VISIBLE)
@@ -187,7 +191,7 @@ class TrackerWidget : AppWidgetProvider() {
                     val opts = mgr.getAppWidgetOptions(id)
                     val dens = context.resources.displayMetrics.density
                     val wDp = maxOf(200, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 300)) - 28
-                    val hDp = maxOf(160, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 340)) - 110
+                    val hDp = maxOf(160, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 340)) - 66
                     val scale = minOf(dens, 1000f / wDp)
                     val bw = (wDp * scale).toInt()
                     val bh = (maxOf(120, hDp) * scale).toInt()
@@ -195,7 +199,7 @@ class TrackerWidget : AppWidgetProvider() {
                     val bmp = if (view == "month") {
                         val (gs, ge) = Data.monthGrid(today)
                         Art.month(tc.get(java.util.Calendar.YEAR), tc.get(java.util.Calendar.MONTH), Data.fmt(java.util.Calendar.getInstance()),
-                            days, Cal.events(context, gs, ge), light, bw, bh)
+                            days, Cal.events(context, gs, ge), light, bw, bh, cache)
                     } else {
                         val ws = Data.weekStart(today)
                         Art.week(ws, Data.fmt(java.util.Calendar.getInstance()), days,

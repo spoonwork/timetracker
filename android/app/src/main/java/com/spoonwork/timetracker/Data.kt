@@ -61,6 +61,9 @@ object Data {
     /** 위젯 보기: day / week / month */
     fun view(c: Context): String = prefs(c).getString("view", "day") ?: "day"
 
+    /** 위젯마다 따로 보기 저장 (달력 위젯 + 데일리 위젯 따로 둘 수 있게) */
+    fun viewFor(c: Context, id: Int): String = prefs(c).getString("view_$id", null) ?: view(c)
+
     /** 이번 달 달력 첫 칸(일요일) ~ 마지막 칸 */
     fun monthGrid(today: String): Pair<String, String> {
         val first = toCal(today).apply { set(Calendar.DAY_OF_MONTH, 1) }

@@ -96,15 +96,21 @@ object Art {
     // ================= 먼슬리 =================
     fun month(
         year: Int, month0: Int, todayDs: String, days: JSONObject?, events: List<Cal.Ev>,
-        dark: Boolean, W: Int, H: Int
+        dark: Boolean, W: Int, H: Int, cache: JSONObject? = null
     ): Bitmap {
         val bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
         val u = W / 340f
         val main = if (dark) Color.WHITE else Color.parseColor("#1F2937")
-        val sub = if (dark) Color.parseColor("#9CA3AF") else Color.parseColor("#9CA3AF")
-        val faint = if (dark) Color.parseColor("#4B5563") else Color.parseColor("#D1D5DB")
+        val sub = if (dark) Color.parseColor("#D1D5DB") else Color.parseColor("#9CA3AF")
+        val faint = if (dark) Color.parseColor("#6B7280") else Color.parseColor("#D1D5DB")
+
+        // 세로로 길면 위에 오늘 날짜 + 일정 + 할 일
+        var top = 0f
+        if (H > W * 1.15f) {
+            top = drawHeader(c, p, u, W, minOf(H * 0.30f, 170 * u), todayDs, days, events, cache, main, sub)
+        }
 
         val first = Calendar.getInstance().apply { clear(); set(year, month0, 1) }
         val offset = first.get(Calendar.DAY_OF_WEEK) - 1          // 일요일 시작
@@ -115,6 +121,8 @@ object Art {
         val inMonth = { ds: String -> Data.toCal(ds).get(Calendar.MONTH) == month0 }
 
         // 요일
+        c.translate(0f, top)
+        val Hc = H - top
         val hh = 18 * u
         p.textSize = 9.5f * u
         p.textAlign = Paint.Align.CENTER
@@ -125,7 +133,7 @@ object Art {
             c.drawText(names[i], cw * i + cw / 2, hh * 0.7f, p)
         }
 
-        val ch = (H - hh) / rows
+        val ch = (Hc - hh) / rows
         val maxW = workMax(days, cells.filter { inMonth(it) })
         val items = items(days, events, cells.first(), cells.last())
         val laneTop = 24 * u
@@ -150,22 +158,22 @@ object Art {
                 }
                 if (!cur) numColor = faint
                 p.typeface = Typeface.DEFAULT_BOLD
-                p.textSize = 11 * u
-                p.textAlign = Paint.Align.LEFT
+                p.textSize = 11.5f * u
+                p.textAlign = Paint.Align.CENTER
+                val cx = x + cw / 2
                 if (ds == todayDs) {
                     p.color = ACCENT
-                    val tw = p.measureText(dayNum)
-                    c.drawRoundRect(RectF(x + 2 * u, y + 2 * u, x + 8 * u + tw, y + 15 * u), 7 * u, 7 * u, p)
+                    c.drawCircle(cx - 5 * u, y + 8.5f * u, 8 * u, p)
                     numColor = Color.WHITE
                 }
                 p.color = numColor
-                c.drawText(dayNum, x + 5 * u, y + 12.5f * u, p)
-                // 일진
+                c.drawText(dayNum, cx - 5 * u, y + 12.5f * u, p)
+                // 일진 (숫자 오른쪽 작게)
                 p.typeface = Typeface.DEFAULT
-                p.textSize = 7 * u
-                p.textAlign = Paint.Align.RIGHT
+                p.textSize = 6.5f * u
+                p.textAlign = Paint.Align.LEFT
                 p.color = if (cur) sub else faint
-                c.drawText(Cal.ganji(ds), x + cw - 3 * u, y + 12 * u, p)
+                c.drawText(Cal.ganji(ds), cx + 4.5f * u, y + 12 * u, p)
                 // 작업 막대 + 수면 막대
                 val day = days?.optJSONObject(ds)
                 val w = day?.optInt("w") ?: 0
@@ -221,6 +229,69 @@ object Art {
             c.drawLine(0f, y, W.toFloat(), y, p)
         }
         return bmp
+    }
+
+    /** 먼슬리 위쪽: 큰 날짜 + 오늘 일정 + 할 일. 그린 높이를 돌려줌 */
+    private fun drawHeader(
+        c: Canvas, p: Paint, u: Float, W: Int, h: Float, todayDs: String, days: JSONObject?,
+        events: List<Cal.Ev>, cache: JSONObject?, main: Int, sub: Int
+    ): Float {
+        val cal = Data.toCal(todayDs)
+        val week = arrayOf("일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일")
+        p.textAlign = Paint.Align.CENTER
+        p.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        p.textSize = 34 * u
+        p.color = main
+        c.drawText(cal.get(Calendar.DAY_OF_MONTH).toString(), W / 2f, 34 * u, p)
+        p.textSize = 9 * u
+        p.color = sub
+        c.drawText("${cal.get(Calendar.MONTH) + 1}월 ${cal.get(Calendar.DAY_OF_MONTH)}일 " +
+            week[cal.get(Calendar.DAY_OF_WEEK) - 1] + "  ·  " + Cal.ganji(todayDs) + "日", W / 2f, 47 * u, p)
+
+        val colTop = 60 * u
+        val lineH = 12 * u
+        val maxLines = maxOf(1, ((h - colTop - 4 * u) / lineH).toInt())
+        val half = W / 2f
+        p.textAlign = Paint.Align.LEFT
+
+        // 왼쪽: 오늘 일정
+        p.typeface = Typeface.DEFAULT_BOLD
+        p.textSize = 9.5f * u
+        p.color = main
+        c.drawText("일정", 8 * u, colTop, p)
+        val todayItems = items(days, events, todayDs, todayDs).filter { it.start <= todayDs && it.end >= todayDs }
+        p.typeface = Typeface.DEFAULT
+        p.textSize = 8.5f * u
+        var y = colTop + lineH
+        todayItems.take(maxLines).forEach { it ->
+            p.color = it.color
+            c.drawRoundRect(RectF(8 * u, y - 7.5f * u, 10.5f * u, y + 1.5f * u), u, u, p)
+            p.color = main
+            val label = (if (it.time.isNotEmpty()) it.time + "  " else "") + it.title
+            c.drawText(fit(p, label, half - 22 * u), 14 * u, y, p)
+            y += lineH
+        }
+        if (todayItems.isEmpty()) { p.color = sub; c.drawText("없음", 8 * u, y, p) }
+
+        // 오른쪽: 할 일
+        p.typeface = Typeface.DEFAULT_BOLD
+        p.textSize = 9.5f * u
+        p.color = main
+        val todos = cache?.optJSONArray("todos")
+        val list = (0 until (todos?.length() ?: 0)).mapNotNull { todos?.optJSONObject(it) }
+            .filter { it.optString("text").isNotBlank() }
+        val done = list.count { it.optBoolean("done") }
+        c.drawText(if (list.isNotEmpty() && done == list.size) "할 일 ✓ 달성!" else "할 일  $done/${list.size}", half + 6 * u, colTop, p)
+        p.typeface = Typeface.DEFAULT
+        p.textSize = 8.5f * u
+        y = colTop + lineH
+        list.take(maxLines).forEach { t ->
+            val d = t.optBoolean("done")
+            p.color = if (d) sub else main
+            c.drawText(fit(p, (if (d) "☑ " else "☐ ") + t.optString("text"), half - 14 * u), half + 6 * u, y, p)
+            y += lineH
+        }
+        return h
     }
 
     // ================= 위클리 =================
