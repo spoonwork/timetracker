@@ -2856,5 +2856,306 @@ async function syncFromSheets(manual = false) {
   </div>
 </div>
 
+<!-- ===== 빠른 입력 (폰 바로가기: ?quick=sleep / block / plan) ===== -->
+<style>
+  #quick-fab {
+    position: fixed; right: 18px; bottom: 18px; z-index: 900;
+    width: 52px; height: 52px; border-radius: 50%; border: none;
+    background: #10B981; color: #fff; font-size: 28px; line-height: 52px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18); cursor: pointer;
+  }
+  #quick-modal {
+    display: none; position: fixed; inset: 0; z-index: 9998;
+    background: rgba(0,0,0,.4); align-items: flex-end; justify-content: center;
+  }
+  #quick-modal.open { display: flex; }
+  .qk-sheet {
+    background: var(--bg, #fff); color: var(--text, #222);
+    width: 100%; max-width: 480px; max-height: 92vh; overflow-y: auto;
+    border-radius: 18px 18px 0 0; padding: 18px 18px 24px; box-sizing: border-box;
+    box-shadow: 0 -8px 32px rgba(0,0,0,.15);
+  }
+  @media (min-width: 700px) {
+    #quick-modal { align-items: center; }
+    .qk-sheet { border-radius: 16px; }
+  }
+  .qk-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .qk-tab {
+    flex: 1; padding: 9px 0; border-radius: 10px; border: 1px solid var(--line, #ddd);
+    background: transparent; color: var(--text-muted, #888); font-size: 14px; cursor: pointer;
+  }
+  .qk-tab.on { background: var(--text, #222); color: var(--bg, #fff); border-color: var(--text, #222); }
+  .qk-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+  .qk-row label { width: 52px; font-size: 13px; color: var(--text-muted, #888); flex-shrink: 0; }
+  .qk-row input, .qk-row select {
+    flex: 1; min-width: 0; font-size: 16px; padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--line, #ddd); background: transparent; color: inherit;
+  }
+  .qk-cats { display: flex; flex-wrap: wrap; gap: 6px; }
+  .qk-cat {
+    padding: 7px 12px; border-radius: 16px; font-size: 13px; cursor: pointer;
+    border: 2px solid transparent; color: #222;
+  }
+  .qk-cat.on { border-color: var(--text, #222); font-weight: bold; }
+  .qk-btns { display: flex; gap: 8px; margin-top: 16px; }
+  .qk-btns button {
+    flex: 1; padding: 11px; border-radius: 10px; font-size: 15px; cursor: pointer;
+    border: 1px solid var(--line, #ddd); background: transparent; color: inherit;
+  }
+  .qk-btns .qk-save { background: #10B981; border-color: #10B981; color: #fff; font-weight: bold; }
+  .qk-list-title { font-size: 12px; color: var(--text-muted, #888); margin: 18px 0 6px; letter-spacing: 1px; }
+  .qk-item {
+    display: flex; align-items: center; gap: 8px; padding: 6px 0;
+    border-bottom: 1px solid var(--line, #eee); font-size: 13px;
+  }
+  .qk-dot { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+  .qk-item .qk-del { margin-left: auto; color: var(--text-muted, #aaa); cursor: pointer; padding: 2px 8px; }
+  .qk-item .qk-del:hover { color: #E85A5A; }
+  .qk-msg { font-size: 12px; color: #10B981; min-height: 16px; margin-top: 8px; text-align: center; }
+</style>
+
+<button id="quick-fab" title="빠른 입력">+</button>
+
+<div id="quick-modal">
+  <div class="qk-sheet">
+    <div class="qk-tabs">
+      <button class="qk-tab" data-tab="block">기록 칠하기</button>
+      <button class="qk-tab" data-tab="plan">일정 쓰기</button>
+    </div>
+
+    <div class="qk-row">
+      <label>날짜</label>
+      <input type="date" id="qk-date" />
+    </div>
+
+    <div id="qk-pane-block">
+      <div class="qk-row" style="align-items:flex-start;">
+        <label style="padding-top:6px;">종류</label>
+        <div class="qk-cats" id="qk-cats"></div>
+      </div>
+      <div class="qk-row">
+        <label>시작</label><input type="time" id="qk-start" step="600" />
+      </div>
+      <div class="qk-row">
+        <label>끝</label><input type="time" id="qk-end" step="600" />
+      </div>
+      <div style="font-size:11px;color:var(--text-muted,#999);margin-left:62px;">
+        새벽 5시 전 시간은 그 날짜 밤으로 들어가요 (예: 01:00 → 그날 밤 1시)
+      </div>
+    </div>
+
+    <div id="qk-pane-plan" style="display:none;">
+      <div class="qk-row">
+        <label>시각</label><select id="qk-hour"></select>
+      </div>
+      <div class="qk-row">
+        <label>내용</label><input type="text" id="qk-plan-text" placeholder="비우고 저장하면 지워져요" />
+      </div>
+    </div>
+
+    <div class="qk-btns">
+      <button id="qk-close">닫기</button>
+      <button class="qk-save" id="qk-save">저장</button>
+    </div>
+    <div class="qk-msg" id="qk-msg"></div>
+
+    <div class="qk-list-title" id="qk-list-title">이 날 기록</div>
+    <div id="qk-list"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const QK_CATS = ['수면', '작업', '식사', '운동', '이동', '외출', '병원', '힐링', '휴식', '관리', '세무'];
+  const START_H = CONFIG.DAY_START_HOUR;          // 5
+  const DAY_MIN = (CONFIG.DAY_END_HOUR - CONFIG.DAY_START_HOUR) * 60;  // 1440
+  let tab = 'block', cat = '수면';
+  const $ = id => document.getElementById(id);
+
+  // 기록표 기준 '오늘' (새벽 5시 전이면 전날)
+  function trackerToday(offset = 0) {
+    const d = new Date();
+    if (d.getHours() < START_H) d.setDate(d.getDate() - 1);
+    d.setDate(d.getDate() + offset);
+    return d;
+  }
+  function dsFromInput() { return $('qk-date').value; }
+  function addDays(ds, n) {
+    const [y, m, d] = ds.split('-').map(Number);
+    return fmtDate(new Date(y, m - 1, d + n));
+  }
+  function toGridMin(t) {             // 'HH:MM' → 5시 기준 분
+    const [h, m] = t.split(':').map(Number);
+    return ((h < START_H ? h + 24 : h) - START_H) * 60 + m;
+  }
+  function fmtGrid(min) {
+    const h = (Math.floor(min / 60) + START_H) % 24, m = min % 60;
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  }
+  function catColor(c) { return CONFIG.CATEGORIES[c] || '#EEE'; }
+
+  function waitSync() {
+    return new Promise(res => {
+      const check = () => (typeof isSyncing !== 'undefined' && isSyncing) ? setTimeout(check, 200) : res();
+      check();
+    });
+  }
+
+  // 기존 칸 덮어쓰기
+  function paintRange(ds, s, e, c) {
+    if (e <= s) return;
+    const blocks = (state.manualBlocks[ds] || []).filter(b => !isNaN(b.startMin) && !isNaN(b.endMin));
+    const out = [];
+    for (const b of blocks) {
+      if (b.endMin <= s || b.startMin >= e) { out.push(b); continue; }
+      if (b.startMin < s) out.push({ ...b, endMin: s });
+      if (b.endMin > e) out.push({ ...b, startMin: e });
+    }
+    out.push({ startMin: s, endMin: e, category: c });
+    out.sort((a, b) => a.startMin - b.startMin);
+    const merged = [];
+    for (const b of out) {
+      const last = merged[merged.length - 1];
+      if (last && last.endMin === b.startMin && last.category === b.category) last.endMin = b.endMin;
+      else merged.push({ ...b });
+    }
+    state.manualBlocks[ds] = merged;
+  }
+
+  function renderCats() {
+    $('qk-cats').innerHTML = QK_CATS.map(c =>
+      `<span class="qk-cat ${c === cat ? 'on' : ''}" data-c="${c}" style="background:${catColor(c)};${c === '작업' ? 'color:#fff;' : ''}">${c}</span>`
+    ).join('');
+    $('qk-cats').querySelectorAll('.qk-cat').forEach(el => el.onclick = () => { cat = el.dataset.c; renderCats(); });
+  }
+
+  function renderHours() {
+    let html = '';
+    for (let h = START_H; h < CONFIG.DAY_END_HOUR; h++) {
+      html += `<option value="${h}">${String(h % 24).padStart(2, '0')}시</option>`;
+    }
+    $('qk-hour').innerHTML = html;
+  }
+  function fillPlanText() {
+    const plans = state.hourPlans[dsFromInput()] || {};
+    $('qk-plan-text').value = plans[$('qk-hour').value] || '';
+  }
+
+  function renderList() {
+    const ds = dsFromInput();
+    if (tab === 'block') {
+      $('qk-list-title').textContent = '이 날 칠해둔 칸';
+      const blocks = (state.manualBlocks[ds] || []).slice().sort((a, b) => a.startMin - b.startMin);
+      $('qk-list').innerHTML = blocks.length ? blocks.map((b, i) => `
+        <div class="qk-item">
+          <span class="qk-dot" style="background:${catColor(b.category)}"></span>
+          <span>${fmtGrid(b.startMin)} ~ ${fmtGrid(b.endMin)}</span>
+          <span style="color:var(--text-muted,#888)">${escapeHtml(b.category || '')}</span>
+          <span class="qk-del" data-s="${b.startMin}" data-e="${b.endMin}" title="지우기">✕</span>
+        </div>`).join('') : '<div style="font-size:13px;color:var(--text-muted,#999);">아직 없어요</div>';
+      $('qk-list').querySelectorAll('.qk-del').forEach(el => el.onclick = async () => {
+        await waitSync();
+        pushHistory();
+        const s = +el.dataset.s, e = +el.dataset.e;
+        state.manualBlocks[ds] = (state.manualBlocks[ds] || []).filter(b => !(b.startMin === s && b.endMin === e));
+        saveToLocal(); render(); renderList();
+      });
+    } else {
+      $('qk-list-title').textContent = '이 날 일정';
+      const plans = state.hourPlans[ds] || {};
+      const hs = Object.keys(plans).map(Number).sort((a, b) => a - b).filter(h => plans[h]);
+      $('qk-list').innerHTML = hs.length ? hs.map(h => `
+        <div class="qk-item" data-h="${h}" style="cursor:pointer;">
+          <span style="width:38px;color:var(--text-muted,#888)">${String(h % 24).padStart(2, '0')}시</span>
+          <span>${escapeHtml(plans[h])}</span>
+        </div>`).join('') : '<div style="font-size:13px;color:var(--text-muted,#999);">아직 없어요</div>';
+      $('qk-list').querySelectorAll('.qk-item').forEach(el => el.onclick = () => {
+        $('qk-hour').value = el.dataset.h; fillPlanText();
+      });
+    }
+  }
+
+  function setTab(t) {
+    tab = t;
+    document.querySelectorAll('.qk-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+    $('qk-pane-block').style.display = t === 'block' ? '' : 'none';
+    $('qk-pane-plan').style.display = t === 'plan' ? '' : 'none';
+    if (t === 'plan') fillPlanText();
+    renderList();
+  }
+
+  function open(mode) {
+    $('qk-msg').textContent = '';
+    if (mode === 'sleep') {
+      cat = '수면';
+      $('qk-date').value = fmtDate(trackerToday(-1));   // 어젯밤
+      $('qk-start').value = '01:00';
+      $('qk-end').value = '08:00';
+      setTab('block');
+    } else if (mode === 'plan') {
+      $('qk-date').value = fmtDate(trackerToday());
+      const h = new Date().getHours();
+      $('qk-hour').value = String(h < START_H ? h + 24 : h);
+      setTab('plan');
+    } else {
+      $('qk-date').value = fmtDate(trackerToday());
+      const now = new Date();
+      const m = Math.floor(now.getMinutes() / 10) * 10;
+      const end = String(now.getHours()).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+      if (!$('qk-end').value || mode) { $('qk-end').value = end; }
+      if (!$('qk-start').value || mode) {
+        const st = new Date(now.getTime() - 60 * 60000);
+        $('qk-start').value = String(st.getHours()).padStart(2, '0') + ':' + String(Math.floor(st.getMinutes() / 10) * 10).padStart(2, '0');
+      }
+      if (cat === '수면' && mode) cat = '작업';
+      setTab('block');
+    }
+    renderCats();
+    $('quick-modal').classList.add('open');
+  }
+  function close() { $('quick-modal').classList.remove('open'); }
+
+  async function save() {
+    const ds = dsFromInput();
+    if (!ds) return;
+    $('qk-msg').textContent = '불러오는 중...';
+    await waitSync();                      // 최신 데이터 받은 뒤에 저장 (덮어쓰기 방지)
+    pushHistory();
+    if (tab === 'block') {
+      const st = $('qk-start').value, en = $('qk-end').value;
+      if (!st || !en) { $('qk-msg').textContent = '시간을 넣어주세요'; return; }
+      const s = toGridMin(st), e = toGridMin(en);
+      if (e > s) paintRange(ds, s, e, cat);
+      else {                               // 새벽 5시를 넘어가면 다음 날로 나눠서
+        paintRange(ds, s, DAY_MIN, cat);
+        if (e > 0) paintRange(addDays(ds, 1), 0, e, cat);
+      }
+      $('qk-msg').textContent = `${cat} ${st}~${en} 저장했어요`;
+    } else {
+      const h = $('qk-hour').value, text = $('qk-plan-text').value;
+      if (!state.hourPlans[ds]) state.hourPlans[ds] = {};
+      if (text.trim()) state.hourPlans[ds][h] = text; else delete state.hourPlans[ds][h];
+      $('qk-msg').textContent = text.trim() ? '일정 저장했어요' : '일정 지웠어요';
+    }
+    saveToLocal();
+    render();
+    renderList();
+  }
+
+  renderHours();
+  $('quick-fab').onclick = () => open();
+  $('qk-close').onclick = close;
+  $('quick-modal').onclick = e => { if (e.target.id === 'quick-modal') close(); };
+  $('qk-save').onclick = save;
+  $('qk-date').onchange = () => { if (tab === 'plan') fillPlanText(); renderList(); };
+  $('qk-hour').onchange = fillPlanText;
+  document.querySelectorAll('.qk-tab').forEach(b => b.onclick = () => setTab(b.dataset.tab));
+  window.openQuickInput = open;
+
+  const q = new URLSearchParams(location.search).get('quick');
+  if (q) open(q);
+})();
+</script>
+
 </body>
 </html>
