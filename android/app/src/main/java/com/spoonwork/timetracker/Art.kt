@@ -41,6 +41,7 @@ object Art {
     /** 사용자 설정: 글자색(없으면 자동), 글자 크기 배율 */
     var textOverride: Int? = null
     var fs: Float = 1f
+    var showSheet: Boolean = true      // 달력 날짜칸에 작업 스프레드 할 일 보이기
     private fun mainOf(dark: Boolean): Int = textOverride ?: if (dark) Color.WHITE else Color.parseColor("#1F2937")
     private val RED = Color.parseColor("#E5484D")
     private val BLUE = Color.parseColor("#3B82F6")
@@ -65,7 +66,7 @@ object Art {
             var guard = 0
             while (d <= toDs && guard++ < 70) {
                 // 작업 스프레드 '슾' 칸 (📅 스케쥴은 일정으로 이미 보이니 빼기)
-                val wt = days.optJSONObject(d)?.optJSONArray("wt")
+                val wt = if (showSheet) days.optJSONObject(d)?.optJSONArray("wt") else null
                 if (wt != null) for (j in 0 until wt.length()) {
                     val w = wt.optJSONObject(j) ?: continue
                     val text = w.optString("text")

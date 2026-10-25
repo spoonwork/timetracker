@@ -243,6 +243,15 @@ class MainActivity : Activity() {
             }
         })
         root.addView(Switch(this).apply {
+            text = "달력 날짜칸에 작업 스프레드(슾) 할 일 보기"
+            textSize = 15f
+            isChecked = p.getBoolean("cal_wt", true)
+            setOnCheckedChangeListener { _, on ->
+                p.edit().putBoolean("cal_wt", on).apply()
+                TrackerWidget.render(applicationContext)
+            }
+        })
+        root.addView(Switch(this).apply {
             text = "구글 캘린더 일정 같이 보기"
             textSize = 15f
             isChecked = Cal.enabled(this@MainActivity)

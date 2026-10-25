@@ -179,6 +179,7 @@ class TrackerWidget : AppWidgetProvider() {
             val strip = drawStrip(cache?.optJSONArray("blocks"), light)
             Art.textOverride = Data.textColor(context)
             Art.fs = Data.fontScale(context)
+            Art.showSheet = prefs.getBoolean("cal_wt", true)
             val mainColor = Data.textColor(context) ?: if (light) Color.WHITE else Color.parseColor("#1F2937")
             val subColor = if (light) Color.parseColor("#E5E7EB") else Color.parseColor("#6B7280")
             val alpha = Data.bgAlpha(context) * 255 / 100
