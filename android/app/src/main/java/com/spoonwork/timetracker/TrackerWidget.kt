@@ -45,6 +45,7 @@ class TrackerWidget : AppWidgetProvider() {
         /** 실제로 받아오기 (RefreshJob 안에서 호출) */
         fun fetchNow(ctx: Context) {
             try {
+                Data.prefs(ctx).edit().remove("crash_widget").apply()
                 val j = Data.fetchSummary(ctx, Data.trackerDay())
                 Data.saveCache(ctx, j)
                 Data.prefs(ctx).edit().remove("error").apply()
@@ -52,8 +53,8 @@ class TrackerWidget : AppWidgetProvider() {
                 Data.prefs(ctx).edit().putString("error", "인터넷 연결 안 됨").apply()
             } catch (e: java.net.SocketTimeoutException) {
                 Data.prefs(ctx).edit().putString("error", "응답 늦음 · ↻ 다시").apply()
-            } catch (e: Exception) {
-                Data.prefs(ctx).edit().putString("error", e.message ?: "연결 실패").apply()
+            } catch (e: Throwable) {
+                Data.prefs(ctx).edit().putString("error", e.javaClass.simpleName + ": " + (e.message ?: "")).apply()
             } finally {
                 Data.prefs(ctx).edit().putLong("loading_at", 0L).apply()
                 render(ctx)
@@ -61,6 +62,14 @@ class TrackerWidget : AppWidgetProvider() {
         }
 
         fun render(context: Context) {
+            try {
+                renderUnsafe(context)
+            } catch (e: Throwable) {
+                Data.prefs(context).edit().putString("crash", "render: " + android.util.Log.getStackTraceString(e).take(1500)).apply()
+            }
+        }
+
+        private fun renderUnsafe(context: Context) {
             val mgr = AppWidgetManager.getInstance(context)
             val ids = mgr.getAppWidgetIds(ComponentName(context, TrackerWidget::class.java))
             if (ids.isEmpty()) return

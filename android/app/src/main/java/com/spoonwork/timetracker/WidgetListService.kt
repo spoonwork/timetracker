@@ -24,6 +24,14 @@ class WidgetListService : RemoteViewsService() {
         override fun onDestroy() {}
 
         override fun onDataSetChanged() {
+            try {
+                build()
+            } catch (e: Throwable) {
+                rows = listOf(Row(0, "목록 오류: ${e.javaClass.simpleName} ${e.message ?: ""}"))
+            }
+        }
+
+        private fun build() {
             val today = Data.trackerDay()
             val cache = Data.cache(ctx)?.takeIf { it.optString("date") == today }
             if (cache == null) {
@@ -73,7 +81,15 @@ class WidgetListService : RemoteViewsService() {
         override fun hasStableIds(): Boolean = false
         override fun getLoadingView(): RemoteViews? = null
 
-        override fun getViewAt(position: Int): RemoteViews {
+        override fun getViewAt(position: Int): RemoteViews = try {
+            view(position)
+        } catch (e: Throwable) {
+            RemoteViews(ctx.packageName, R.layout.row_header).apply {
+                setTextViewText(R.id.text, "표시 오류: ${e.javaClass.simpleName}")
+            }
+        }
+
+        private fun view(position: Int): RemoteViews {
             val r = rows.getOrNull(position) ?: return RemoteViews(ctx.packageName, R.layout.row_header)
             if (r.type == 0) {
                 return RemoteViews(ctx.packageName, R.layout.row_header).apply {

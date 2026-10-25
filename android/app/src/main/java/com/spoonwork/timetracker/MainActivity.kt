@@ -115,6 +115,12 @@ class MainActivity : Activity() {
             p.edit().putString("url", urlEdit.text.toString().trim()).apply()
             TrackerWidget.refresh(applicationContext)
         })
+        val crash = p.getString("crash", null)
+        if (crash != null) {
+            root.addView(text("멈춤 기록 (캡처해서 보내주세요)", 12f, Color.parseColor("#E85A5A"), bold = true))
+            root.addView(text(crash, 10f, Color.parseColor("#6B7280")).apply { setTextIsSelectable(true) })
+            root.addView(button("멈춤 기록 지우기") { p.edit().remove("crash").apply(); recreate() })
+        }
         val err = p.getString("error", null)
         if (err != null) root.addView(text("마지막 오류: $err", 12f, Color.parseColor("#E85A5A")))
 

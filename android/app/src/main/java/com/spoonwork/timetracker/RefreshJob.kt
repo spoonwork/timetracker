@@ -22,19 +22,18 @@ class RefreshJob : JobService() {
 
     companion object {
         fun schedule(ctx: Context) {
-            val js = ctx.getSystemService(JobScheduler::class.java) ?: return
-            val b = JobInfo.Builder(1001, ComponentName(ctx, RefreshJob::class.java))
-                .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
-            if (Build.VERSION.SDK_INT >= 31) b.setExpedited(true)
             try {
-                js.schedule(b.build())
-            } catch (e: Exception) {
-                // 빠른 작업 한도 초과 등: 일반 작업으로 다시
-                js.schedule(
-                    JobInfo.Builder(1001, ComponentName(ctx, RefreshJob::class.java))
-                        .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY).build()
-                )
-            }
+                val js = ctx.getSystemService(JobScheduler::class.java)
+                val b = JobInfo.Builder(1001, ComponentName(ctx, RefreshJob::class.java))
+                    .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+                if (Build.VERSION.SDK_INT >= 31) {
+                    try { b.setExpedited(true) } catch (_: Throwable) {}
+                }
+                val ok = try { js.schedule(b.build()) == JobScheduler.RESULT_SUCCESS } catch (_: Throwable) { false }
+                if (ok) return
+            } catch (_: Throwable) {}
+            // 작업 등록이 안 되면 그냥 바로 받아오기
+            Thread { TrackerWidget.fetchNow(ctx) }.start()
         }
     }
 }
