@@ -23,6 +23,7 @@ class WidgetListService : RemoteViewsService() {
         val hour: Int = -1,         // 트래커 일정이면 시각
         val day: String = "",
         val eventId: Long = -1,
+        val work: Boolean = false,
         val begin: Long = 0,
         val end: Long = 0,
         val past: Boolean = false
@@ -78,10 +79,23 @@ class WidgetListService : RemoteViewsService() {
                     todoRows.add(Row(1, text, t.optBoolean("done"), day = today))
                 }
             }
-            if (todoRows.isNotEmpty()) {
-                val done = todoRows.count { it.done }
-                out.add(Row(0, if (done == todoRows.size) "할 일 ✓ 목표 달성!" else "할 일  $done/${todoRows.size}"))
-                out.addAll(todoRows)
+            // 작업 스프레드 '슾' 줄 (📅 스케쥴 표시는 일정으로 이미 보이니 빼기)
+            val wtArr = cache?.optJSONObject("days")?.optJSONObject(today)?.optJSONArray("wt")
+            val workRows = mutableListOf<Row>()
+            if (wtArr != null) for (i in 0 until wtArr.length()) {
+                val w = wtArr.optJSONObject(i) ?: continue
+                val text = w.optString("text")
+                if (text.isBlank() || text.startsWith("📅")) continue
+                workRows.add(Row(1, text, w.optBoolean("done"), day = today, work = true))
+            }
+            val only = Data.prefs(ctx).getBoolean("wonly_$wid", false)
+            val shown = workRows + (if (only) emptyList() else todoRows)
+            if (shown.isNotEmpty() || workRows.isNotEmpty()) {
+                val done = shown.count { it.done }
+                val label = if (only) "작업만" else "할 일"
+                out.add(Row(0, (if (shown.isNotEmpty() && done == shown.size) "$label ✓ 목표 달성!" else "$label  $done/${shown.size}") +
+                    (if (workRows.isNotEmpty()) (if (only) "   · 눌러서 전체" else "   · 눌러서 작업만") else ""), hour = -9))
+                out.addAll(shown)
             }
 
             // 일정: 오늘부터 7일
@@ -156,13 +170,20 @@ class WidgetListService : RemoteViewsService() {
             when (r.type) {
                 0 -> return RemoteViews(ctx.packageName, R.layout.row_header).apply {
                     setTextViewText(R.id.text, r.text)
+                    if (r.hour == -9) setOnClickFillInIntent(R.id.text, Intent().putExtra("type", "wfilter").putExtra("wid", wid))
                 }
                 1 -> {
                     val rv = RemoteViews(ctx.packageName, R.layout.row_item)
                     rv.setTextColor(R.id.text, if (r.done) doneC else mainC)
                     rv.setTextViewText(R.id.text, r.text)
                     rv.setTextViewText(R.id.lead, if (r.done) "☑" else "☐")
-                    rv.setTextColor(R.id.lead, if (r.done) Color.parseColor("#10B981") else mainC)
+                    rv.setTextColor(R.id.lead, if (r.work) Color.parseColor("#E85A5A")
+                        else if (r.done) Color.parseColor("#10B981") else mainC)
+                    if (r.work) {
+                        rv.setOnClickFillInIntent(R.id.row, Intent().putExtra("type", "wt").putExtra("text", r.text)
+                            .putExtra("day", r.day).putExtra("done", !r.done))
+                        return rv
+                    }
                     rv.setOnClickFillInIntent(R.id.row, Intent().putExtra("type", "todo").putExtra("text", r.text).putExtra("day", r.day))
                     return rv
                 }

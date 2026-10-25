@@ -26,6 +26,27 @@ class ActionActivity : Activity() {
                         .putExtra("day", intent.getStringExtra("day") ?: "")
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 )
+                "wt" -> {
+                    val ops = JSONArray().put(Data.op("wt_set", intent.getStringExtra("day") ?: Data.trackerDay())
+                        .put("text", intent.getStringExtra("text") ?: "").put("done", intent.getBooleanExtra("done", true)))
+                    val ctx = applicationContext
+                    Data.applyOpsToCache(ctx, ops)
+                    TrackerWidget.render(ctx)
+                    Thread {
+                        try { Data.sendOps(ctx, ops) } catch (e: Exception) {
+                            Handler(Looper.getMainLooper()).post {
+                                Toast.makeText(ctx, "작업 스프레드 저장 실패: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        TrackerWidget.refresh(ctx)
+                    }.start()
+                }
+                "wfilter" -> {
+                    val wid = intent.getIntExtra("wid", -1)
+                    val pr = Data.prefs(applicationContext)
+                    pr.edit().putBoolean("wonly_$wid", !pr.getBoolean("wonly_$wid", false)).apply()
+                    TrackerWidget.render(applicationContext)
+                }
                 "gcal" -> {
                     val id = intent.getLongExtra("id", -1)
                     val i = Intent(Intent.ACTION_VIEW, ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id))

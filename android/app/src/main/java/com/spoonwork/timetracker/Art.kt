@@ -289,7 +289,10 @@ object Art {
         // 내용 줄 수만큼만 높이를 씀 (빈 공간 없이)
         val todayItems = items(days, events, todayDs, todayDs).filter { it.start <= todayDs && it.end >= todayDs }
         val todosArr = cache?.optJSONArray("todos")
-        val list = (0 until (todosArr?.length() ?: 0)).mapNotNull { todosArr?.optJSONObject(it) }
+        val wtArr = days?.optJSONObject(todayDs)?.optJSONArray("wt")
+        val list = ((0 until (wtArr?.length() ?: 0)).mapNotNull { wtArr?.optJSONObject(it) }
+            .filter { !it.optString("text").startsWith("📅") } +
+            (0 until (todosArr?.length() ?: 0)).mapNotNull { todosArr?.optJSONObject(it) })
             .filter { it.optString("text").isNotBlank() }
         val capLines = maxOf(1, ((h - colTop - 4 * u) / lineH).toInt())
         val maxLines = minOf(capLines, maxOf(1, todayItems.size, list.size))

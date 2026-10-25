@@ -299,6 +299,32 @@ object Data {
         val days = cache.optJSONObject("days")
         val app = appShape(cache)
         applyOps(app, ops)
+        // 작업 스프레드(슾) 줄도 화면에 바로
+        if (days != null) for (i in 0 until ops.length()) {
+            val o = ops.optJSONObject(i) ?: continue
+            val t = o.optString("t")
+            if (!t.startsWith("wt_")) continue
+            val d = o.optString("d")
+            val item = days.optJSONObject(d) ?: JSONObject().also { days.put(d, it) }
+            val arr = item.optJSONArray("wt") ?: JSONArray().also { item.put("wt", it) }
+            val out = JSONArray()
+            var hit = false
+            for (j in 0 until arr.length()) {
+                val x = arr.optJSONObject(j) ?: continue
+                val same = x.optString("text") == (if (t == "wt_edit") o.optString("old") else o.optString("text"))
+                if (!hit && same) {
+                    hit = true
+                    when (t) {
+                        "wt_del" -> continue
+                        "wt_set" -> x.put("done", o.optBoolean("done"))
+                        "wt_edit" -> x.put("text", o.optString("text"))
+                    }
+                }
+                out.put(x)
+            }
+            if (t == "wt_add" || (t == "wt_edit" && !hit)) out.put(JSONObject().put("text", o.optString("text")).put("done", false))
+            item.put("wt", out)
+        }
         cache.put("todos", app.getJSONObject("todos").optJSONArray(day) ?: JSONArray())
         cache.put("plans", app.getJSONObject("hourPlans").optJSONObject(day) ?: JSONObject())
         cache.put("blocks", app.getJSONObject("manualBlocks").optJSONArray(day) ?: JSONArray())

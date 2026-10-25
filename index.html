@@ -426,7 +426,8 @@
     display: flex; align-items: flex-start; gap: 8px;
     padding: 5px 0; font-size: 13px;
   }
-  .memo-list .item.done span:not(.cb):not(.todo-del) { color: var(--text-muted); text-decoration: line-through; }
+  .memo-list .item.done span:not(.cb):not(.todo-del):not(.wt-tag) { color: var(--text-muted); text-decoration: line-through; }
+  .wt-tag { font-size: 10px; color: #fff; background: #E85A5A; border-radius: 4px; padding: 0 4px; margin-left: 4px; flex-shrink: 0; }
   .todo-del {
     margin-left: auto; padding: 0 4px; cursor: pointer;
     color: var(--text-muted); opacity: 0.35; font-size: 12px; line-height: 18px;
@@ -542,7 +543,9 @@
 
       <div class="sidebar">
         <div class="card">
-          <div class="card-title">📋 오늘 할 일</div>
+          <div class="card-title" style="display:flex;align-items:center;">📋 오늘 할 일
+            <span id="wt-filter" title="작업 스프레드(슾)만 보기" style="margin-left:auto;font-size:11px;cursor:pointer;padding:2px 8px;border-radius:10px;border:1px solid var(--line);color:var(--text-muted);">전체</span>
+          </div>
           <div class="memo-list" id="todo-list"></div>
           <div class="add-item item">
             <span class="cb" style="border-color: var(--line);"></span>
@@ -1794,17 +1797,51 @@ function syncPlanToTodo(ds, h, text, done) {
   }
 }
 
+async function sendOps(ops) {
+  const res = await fetch(CONFIG.APPS_SCRIPT_URL, {
+    method: 'POST', redirect: 'follow',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ ops }),
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Save failed');
+}
+
 function renderTodos() {
   const ds = fmtDate(state.date);
   const list = state.todos[ds] || [];
   const el = document.getElementById('todo-list');
-  el.innerHTML = list.map((p, i) => `
+  // 작업 스프레드 '슾' 줄 (📅 스케쥴 표시는 빼고)
+  const wt = ((state.workTasks || {})[ds] || []).filter(w => !String(w.text).startsWith('📅'));
+  const only = !!state.wtOnly;
+  const fb = document.getElementById('wt-filter');
+  if (fb) {
+    fb.textContent = only ? '작업만' : '전체';
+    fb.style.background = only ? '#E85A5A' : 'transparent';
+    fb.style.color = only ? '#fff' : 'var(--text-muted)';
+    fb.onclick = () => { state.wtOnly = !state.wtOnly; renderTodos(); };
+  }
+  const wtHtml = wt.map((w, i) => `
+    <div class="item ${w.done ? 'done' : ''}">
+      <span class="cb wt-cb ${w.done ? 'checked' : ''}" data-widx="${i}"></span>
+      <span>${escapeHtml(w.text)}</span><span class="wt-tag">작업</span>
+    </div>`).join('');
+  el.innerHTML = wtHtml + (only ? '' : list.map((p, i) => `
     <div class="item ${p.done ? 'done' : ''}">
       <span class="cb ${p.done ? 'checked' : ''}" data-idx="${i}"></span>
       <span>${escapeHtml(p.text)}</span>
       <span class="todo-del" data-idx="${i}" title="삭제">✕</span>
     </div>
-  `).join('');
+  `).join(''));
+  el.querySelectorAll('.wt-cb').forEach(cb => {
+    cb.onclick = async () => {
+      const w = wt[parseInt(cb.dataset.widx)];
+      w.done = !w.done;
+      renderTodos();
+      try { await sendOps([{ t: 'wt_set', d: ds, text: w.text, done: w.done }]); }
+      catch (e) { w.done = !w.done; renderTodos(); alert('작업 스프레드 저장 실패: ' + e.message); }
+    };
+  });
   el.querySelectorAll('.todo-del').forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();
@@ -1816,7 +1853,7 @@ function renderTodos() {
       renderTodos();
     };
   });
-  el.querySelectorAll('.cb').forEach(cb => {
+  el.querySelectorAll('.cb:not(.wt-cb)').forEach(cb => {
     cb.onclick = () => {
       const i = parseInt(cb.dataset.idx);
       list[i].done = !list[i].done;
@@ -2843,6 +2880,7 @@ async function syncFromSheets(manual = false) {
     const sheetManual = processManualSheetRows(data.manual || []);
     applyAppData(data.appData || {});
     if (data.workCal && !data.workCal._error) state.workCal = data.workCal;
+    if (data.workTasks && !data.workTasks._error) state.workTasks = data.workTasks;
 
     Object.keys(sheetManual).forEach(d => {
       if (!state.manualBlocks[d] || state.manualBlocks[d].length === 0) {

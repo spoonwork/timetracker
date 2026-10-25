@@ -82,6 +82,12 @@ function doGet(e) {
       ok: true,
       logs: logsData,
       workCal: appDataOnly ? undefined : workCalColors(e && e.parameter && e.parameter.fresh === '1'),
+      workTasks: appDataOnly ? undefined : (function () {
+        const n = new Date();
+        const f = new Date(n.getFullYear(), n.getMonth() - 1, 1), l = new Date(n.getFullYear(), n.getMonth() + 2, 0);
+        const fmt = function (d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); };
+        return workTasks(fmt(f), fmt(l));
+      })(),
       manual: manualData,
       appData: appDataObj,
       timestamp: new Date().toISOString(),
@@ -274,6 +280,134 @@ function workCalColors(fresh) {
   return keep;
 }
 
+// =============== 작업 캘린더 '슾' 줄 (내 작업) ===============
+const ME_LABEL = '슾';
+
+/** 한 탭을 읽어 주(週) 단위 블록으로: [{dates:{col:ds}, meRows:[r], end:r}] (r, col은 1부터) */
+function readWorkTab(sh, tz) {
+  const nr = sh.getLastRow(), nc = Math.min(sh.getLastColumn(), 20);
+  if (nr < 1 || nc < 3) return { blocks: [], disp: [], vals: [] };
+  const rng = sh.getRange(1, 1, nr, nc);
+  const disp = rng.getDisplayValues(), vals = rng.getValues();
+  const blocks = [];
+  let cur = null, label = '';
+  for (let r = 0; r < nr; r++) {
+    const dates = {};
+    let n = 0;
+    for (let c = 2; c < nc; c++) {
+      const v = vals[r][c];
+      if (v instanceof Date && DATE_CELL_RE.test(disp[r][c])) { dates[c + 1] = Utilities.formatDate(v, tz, 'yyyy-MM-dd'); n++; }
+    }
+    if (n >= 3) {
+      if (cur) { cur.end = r; blocks.push(cur); }
+      cur = { dates: dates, meRows: [], end: nr };
+      label = '';
+      continue;
+    }
+    const a = String(disp[r][0] || '').trim();
+    if (a) label = a;
+    if (cur && label === ME_LABEL) cur.meRows.push(r + 1);
+  }
+  if (cur) blocks.push(cur);
+  return { blocks: blocks, disp: disp, vals: vals };
+}
+
+function workTabsFor(wb, dsList) {
+  const months = {};
+  dsList.forEach(function (ds) { months[+ds.slice(5, 7)] = true; });
+  return wb.getSheets().filter(function (s) {
+    const m = s.getName().match(/^(?:\d{4}년\s*)?(\d{1,2})월$/);
+    return m && months[+m[1]];
+  });
+}
+
+/** fromDs~toDs 내 작업 목록: {ds: [{text, done}]} */
+function workTasks(fromDs, toDs) {
+  if (!WORKCAL_ID || WORKCAL_ID.indexOf('__') === 0) return {};
+  const out = {};
+  try {
+    const wb = SpreadsheetApp.openById(WORKCAL_ID);
+    const tz = wb.getSpreadsheetTimeZone();
+    const list = [];
+    for (let d = fromDs; d <= toDs; d = shiftDate(d, 1)) list.push(d);
+    workTabsFor(wb, list).forEach(function (sh) {
+      const tab = readWorkTab(sh, tz);
+      tab.blocks.forEach(function (b) {
+        Object.keys(b.dates).forEach(function (col) {
+          const ds = b.dates[col];
+          if (ds < fromDs || ds > toDs) return;
+          b.meRows.forEach(function (r) {
+            const text = String(tab.disp[r - 1][col - 1] || '').trim();
+            if (!text) return;
+            const done = tab.vals[r - 1][col] === true;
+            (out[ds] = out[ds] || []);
+            if (!out[ds].some(function (x) { return x.text === text; })) out[ds].push({ text: text, done: done });
+          });
+        });
+      });
+    });
+  } catch (err) {
+    return { _error: String(err) };
+  }
+  return out;
+}
+
+/** 그 날 '슾' 칸 찾기 → {sh, col, rows} */
+function locateMe(wb, ds) {
+  const tz = wb.getSpreadsheetTimeZone();
+  const tabs = workTabsFor(wb, [ds]);
+  for (let i = 0; i < tabs.length; i++) {
+    const tab = readWorkTab(tabs[i], tz);
+    for (let j = 0; j < tab.blocks.length; j++) {
+      const b = tab.blocks[j];
+      const col = Object.keys(b.dates).filter(function (c) { return b.dates[c] === ds; })[0];
+      if (col && b.meRows.length) return { sh: tabs[i], col: +col, rows: b.meRows, tab: tab, block: b };
+    }
+  }
+  return null;
+}
+
+function applyWorkOp(wb, o) {
+  const loc = locateMe(wb, o.d);
+  if (!loc) throw new Error('작업 캘린더에서 ' + o.d + ' 칸을 못 찾았어요');
+  const sh = loc.sh, col = loc.col;
+  const textAt = function (r) { return String(sh.getRange(r, col).getDisplayValue() || '').trim(); };
+  const find = function (text) {
+    for (let i = 0; i < loc.rows.length; i++) if (textAt(loc.rows[i]) === text) return loc.rows[i];
+    return -1;
+  };
+  if (o.t === 'wt_set') {
+    const r = find(o.text); if (r > 0) sh.getRange(r, col + 1).setValue(!!o.done);
+  } else if (o.t === 'wt_del') {
+    const r = find(o.text); if (r > 0) { sh.getRange(r, col).clearContent(); sh.getRange(r, col + 1).setValue(false); }
+  } else if (o.t === 'wt_edit') {
+    const r = find(o.old); if (r > 0) sh.getRange(r, col).setValue(o.text);
+    else o = { t: 'wt_add', d: o.d, text: o.text };
+  }
+  if (o.t === 'wt_add') {
+    let r = -1;
+    for (let i = 0; i < loc.rows.length; i++) if (!textAt(loc.rows[i])) { r = loc.rows[i]; break; }
+    if (r < 0) {
+      // 빈 칸이 없으면 내 줄 아래에 한 줄 추가 (모양·체크박스 복사)
+      const last = loc.rows[loc.rows.length - 1];
+      sh.insertRowAfter(last);
+      r = last + 1;
+      const lc = sh.getLastColumn();
+      sh.getRange(last, 1, 1, lc).copyTo(sh.getRange(r, 1, 1, lc), { formatOnly: true });
+      Object.keys(loc.block.dates).forEach(function (c) {
+        const cb = sh.getRange(r, +c + 1);
+        if (sh.getRange(last, +c + 1).getValue() === true || sh.getRange(last, +c + 1).getValue() === false) {
+          cb.insertCheckboxes(); cb.setValue(false);
+        }
+      });
+    }
+    sh.getRange(r, col).setValue(o.text);
+    const cb = sh.getRange(r, col + 1);
+    if (cb.getValue() !== true && cb.getValue() !== false) cb.insertCheckboxes();
+    cb.setValue(false);
+  }
+}
+
 function buildWidgetSummary(ss, date, fromDs, toDs) {
   const tz = ss.getSpreadsheetTimeZone();
   const todayDs = Utilities.formatDate(new Date(Date.now() - WIDGET_DAY_START * 3600 * 1000), tz, 'yyyy-MM-dd');
@@ -285,6 +419,8 @@ function buildWidgetSummary(ss, date, fromDs, toDs) {
   const hp = app.hourPlans || {};
 
   const work = workByDay(ss, fromDs, toDs, todayDs, tz);
+  const wtAll = workTasks(fromDs, toDs);
+  const wt = wtAll._error ? {} : wtAll;
   // PC 트래커가 직접 올린 하루 작업시간이 있으면 그걸 우선 (진행 중 작업까지 포함)
   const td = app.trackerDaily || {};
   Object.keys(td).forEach(function (d) {
@@ -300,6 +436,7 @@ function buildWidgetSummary(ss, date, fromDs, toDs) {
     const td = (app.todos || {})[d];
     if (td && td.length) item.t = td;
     if (mb[d] && mb[d].length) item.b = mb[d];
+    if (wt[d] && wt[d].length) item.wt = wt[d];
     const hc = (app.hourChecks || {})[d];
     if (hc && Object.keys(hc).length) item.c = hc;
     days[d] = item;
@@ -407,7 +544,13 @@ function applyWidgetOps(ss, appSheet, ops) {
     const changed = {};
     const obj = function (k) { if (!app[k] || typeof app[k] !== 'object') app[k] = {}; changed[k] = true; return app[k]; };
 
+    let wb = null;
     ops.forEach(function (o) {
+      if (String(o.t).indexOf('wt_') === 0) {
+        if (!wb) wb = SpreadsheetApp.openById(WORKCAL_ID);
+        applyWorkOp(wb, o);
+        return;
+      }
       if (o.t === 'todo_add') {
         const td = obj('todos'); (td[o.d] = td[o.d] || []).push({ text: o.text, done: false });
       } else if (o.t === 'todo_del') {

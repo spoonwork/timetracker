@@ -52,6 +52,8 @@ class QuickActivity : Activity() {
     private lateinit var planStartBtn: TextView
     private lateinit var planEndBtn: TextView
     private lateinit var gcalCheck: android.widget.CheckBox
+    private lateinit var shareCheck: android.widget.CheckBox      // 일정: 작업 스프레드에 내용 공개
+    private lateinit var wtCheck: android.widget.CheckBox         // 할 일: 작업 스프레드에도
     private lateinit var planEdit: EditText
     private lateinit var paneTodo: LinearLayout
     private lateinit var todoEdit: EditText
@@ -219,6 +221,14 @@ class QuickActivity : Activity() {
         }
         panePlan.addView(gcalCheck, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(48) })
+        shareCheck = android.widget.CheckBox(this).apply {
+            text = "작업 스프레드에 내용 공개 (끄면 '📅 스케쥴'로만)"
+            textSize = 13f
+            isChecked = false
+            setTextColor(textMain)
+        }
+        panePlan.addView(shareCheck, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(48) })
         root.addView(panePlan)
 
         // 할 일
@@ -231,6 +241,14 @@ class QuickActivity : Activity() {
             setOnEditorActionListener { _, _, _ -> save(); true }
         }
         paneTodo.addView(row("할 일", todoEdit))
+        wtCheck = android.widget.CheckBox(this).apply {
+            text = "작업 스프레드에도 (직원 공유)"
+            textSize = 13f
+            isChecked = false
+            setTextColor(textMain)
+        }
+        paneTodo.addView(wtCheck, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(48) })
         root.addView(paneTodo)
 
         // 버튼
@@ -335,6 +353,8 @@ class QuickActivity : Activity() {
         planEdit.setText(existing)
         planEdit.setSelection(planEdit.text.length)
         editHour = if (existing.isBlank()) null else planHour
+        val wl = if (existing.isBlank()) null else Data.prefs(this).getString("wlnk_${day}_$planHour", null)
+        shareCheck.isChecked = wl != null && wl != "📅 스케쥴"
         val link = if (existing.isBlank()) null else Cal.link(applicationContext, day, planHour)
         if (link != null) {
             // 구글 캘린더에 넣었던 시간 그대로 불러오기
@@ -503,7 +523,13 @@ class QuickActivity : Activity() {
     /** 일정 지우기 (구글 캘린더에 연결돼 있으면 거기서도) */
     private fun deletePlan(h: Int) {
         val d = day
-        commit("일정 지움", JSONArray().put(Data.op("plan_set", d).put("h", h).put("text", "")))
+        val delOps = JSONArray().put(Data.op("plan_set", d).put("h", h).put("text", ""))
+        val wl = Data.prefs(this).getString("wlnk_${d}_$h", null)
+        if (wl != null) {
+            delOps.put(Data.op("wt_del", d).put("text", wl))
+            Data.prefs(this).edit().remove("wlnk_${d}_$h").apply()
+        }
+        commit("일정 지움", delOps)
         if (editHour == h) { editHour = null; planEdit.setText("") }
         val link = Cal.link(applicationContext, d, h) ?: return
         withCal {
@@ -542,6 +568,16 @@ class QuickActivity : Activity() {
                 if (end <= begin) end = begin + 3600_000L
                 val link = oldH?.let { Cal.link(applicationContext, d, it) }
                 val want = gcalCheck.isChecked
+                // 작업 스프레드 '슾' 칸: 공개면 내용, 아니면 '📅 스케쥴'
+                val pr = Data.prefs(this)
+                val sheetText = "📅 " + (if (shareCheck.isChecked)
+                    String.format(Locale.US, "%02d:%02d ", newH % 24, pm) + text else "스케쥴")
+                val oldSheet = oldH?.let { pr.getString("wlnk_${d}_$it", null) }
+                if (oldSheet == null) ops.put(Data.op("wt_add", d).put("text", sheetText))
+                else if (oldSheet != sheetText) ops.put(Data.op("wt_edit", d).put("old", oldSheet).put("text", sheetText))
+                val ed = pr.edit()
+                if (oldH != null) ed.remove("wlnk_${d}_$oldH")
+                ed.putString("wlnk_${d}_$newH", sheetText).apply()
                 commit("일정 저장", ops)
                 editHour = newH
                 val ctx = applicationContext
@@ -570,7 +606,8 @@ class QuickActivity : Activity() {
                 val text = todoEdit.text.toString().trim()
                 if (text.isEmpty()) return
                 todoEdit.setText("")
-                commit("할 일 추가", JSONArray().put(Data.op("todo_add", day).put("text", text)))
+                if (wtCheck.isChecked) commit("작업 스프레드에 추가", JSONArray().put(Data.op("wt_add", day).put("text", text)))
+                else commit("할 일 추가", JSONArray().put(Data.op("todo_add", day).put("text", text)))
             }
         }
     }
