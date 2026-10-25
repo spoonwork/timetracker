@@ -61,15 +61,30 @@ class TrackerWidget : AppWidgetProvider() {
                 // 달력에서 날짜 누름 → 이 위젯을 그 날 데일리로
                 val wid = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
                 val ds = intent.getStringExtra("day") ?: return
-                Data.prefs(context).edit().putString("view_$wid", "day").putString("sel_$wid", ds).apply()
+                Data.prefs(context).edit().putString("view_$wid", "day").putString("sel_$wid", ds)
+                    .putBoolean("selm_$wid", true).apply()
                 render(context)
+            }
+            ACTION_DSHIFT -> {
+                // 데일리: ‹ › 로 하루씩 넘기기
+                val wid = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
+                val today = Data.trackerDay()
+                val pr = Data.prefs(context)
+                val ds = Data.shift(pr.getString("sel_$wid", null) ?: today, intent.getIntExtra("delta", 0))
+                if (ds == today && !pr.getBoolean("selm_$wid", false)) pr.edit().remove("sel_$wid").apply()
+                else pr.edit().putString("sel_$wid", ds).apply()
+                render(context)
+                // 받아둔 기간 밖이면 그 날 기록 받아오기
+                if (Data.cache(context)?.optJSONObject("days")?.has(ds) != true) refresh(context)
             }
             ACTION_NEXT_VIEW -> {
                 val wid = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
                 val pr = Data.prefs(context)
                 if (pr.getString("sel_$wid", null) != null) {
-                    // 날짜 보던 중이면 달력으로 돌아가기
-                    pr.edit().remove("sel_$wid").putString("view_$wid", "month").apply()
+                    // 달력에서 들어온 거면 달력으로, ‹ › 로 넘긴 거면 오늘로
+                    val fromMonth = pr.getBoolean("selm_$wid", false)
+                    pr.edit().remove("sel_$wid").remove("selm_$wid").apply()
+                    if (fromMonth) pr.edit().putString("view_$wid", "month").apply()
                     render(context)
                     return
                 }
@@ -94,6 +109,7 @@ class TrackerWidget : AppWidgetProvider() {
         const val ACTION_PICK = "com.spoonwork.timetracker.PICK"
         const val ACTION_TOGGLE_WT = "com.spoonwork.timetracker.TOGGLE_WT"
         const val ACTION_HSHIFT = "com.spoonwork.timetracker.HSHIFT"
+        const val ACTION_DSHIFT = "com.spoonwork.timetracker.DSHIFT"
 
         /** 시트에서 오늘 요약을 받아와 위젯 다시 그림 (네트워크 보장되는 작업으로 실행) */
         fun refresh(context: Context, pending: PendingResult? = null) {
@@ -121,6 +137,7 @@ class TrackerWidget : AppWidgetProvider() {
                         val (a, b) = Data.monthGridOffset(today, mo)
                         from = minOf(from, a); to = maxOf(to, b)
                     }
+                    pr0.getString("sel_$wid", null)?.let { sd -> from = minOf(from, sd); to = maxOf(to, sd) }
                     val wo = pr0.getInt("woff_$wid", 0)
                     if (wo != 0) {
                         val ws = Data.shift(Data.weekStart(today), 7 * wo)
@@ -250,7 +267,7 @@ class TrackerWidget : AppWidgetProvider() {
                         val ws = Data.toCal(Data.shift(Data.weekStart(today), 7 * prefs.getInt("woff_$id", 0)))
                         "${ws.get(java.util.Calendar.MONTH) + 1}/${ws.get(java.util.Calendar.DAY_OF_MONTH)}~"
                     }
-                    else -> if (sel != null) "◂ " + Data.prettyDay(sel).replace("월 ", "/").replace("일 ", " ")
+                    else -> if (sel != null) (if (prefs.getBoolean("selm_$id", false)) "◂ " else "") + Data.prettyDay(sel).replace("월 ", "/").replace("일 ", " ")
                         else Data.prettyDay(today).replace("월 ", "/").replace("일 ", " ")
                 }
                 rv.setTextViewText(R.id.title, "$title ▾")
@@ -266,6 +283,14 @@ class TrackerWidget : AppWidgetProvider() {
                     rv.setOnClickPendingIntent(R.id.btn_plan, quick(context, "plan", base + 3, sel))
                     rv.setOnClickPendingIntent(R.id.btn_todo, quick(context, "todo", base + 4, sel))
                     rv.setOnClickPendingIntent(R.id.strip, quick(context, "block", base + 5, sel))
+                    rv.setTextColor(R.id.btn_dprev, subColor)
+                    rv.setTextColor(R.id.btn_dnext, subColor)
+                    for ((vid, dl) in listOf(R.id.btn_dprev to -1, R.id.btn_dnext to 1)) {
+                        rv.setOnClickPendingIntent(vid, PendingIntent.getBroadcast(context, 7600 + (id % 1000) * 2 + (if (dl < 0) 0 else 1),
+                            Intent(context, TrackerWidget::class.java).setAction(ACTION_DSHIFT)
+                                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).putExtra("delta", dl),
+                            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+                    }
                 }
                 rv.setOnClickPendingIntent(
                     R.id.title,
