@@ -60,7 +60,45 @@ class MainActivity : Activity() {
         }
         val gap = { h: Int -> View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(h)) } }
 
-        root.addView(text("타임트래커 위젯", 22f, bold = true))
+        root.addView(text("타임트래커 위젯  v${Updater.currentVersion(this)}", 22f, bold = true))
+
+        // 업데이트 확인
+        val upd = button("업데이트 확인 중…") {}
+        root.addView(upd)
+        Thread {
+            val latest = Updater.latestVersion()
+            val cur = Updater.currentVersion(this)
+            p.edit().putInt("latest", latest).putLong("latest_at", System.currentTimeMillis()).apply()
+            runOnUiThread {
+                if (latest > cur) {
+                    upd.text = "⬆ 새 버전 v$latest 업데이트"
+                    upd.background = GradientDrawable().apply {
+                        cornerRadius = dp(12).toFloat(); setColor(Color.parseColor("#3B82F6"))
+                    }
+                    upd.setTextColor(Color.WHITE)
+                    upd.setOnClickListener {
+                        if (!packageManager.canRequestPackageInstalls()) {
+                            upd.text = "이 앱의 설치 허용을 켜고 돌아와서 다시 눌러주세요"
+                            startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                Uri.parse("package:$packageName")))
+                        } else {
+                            upd.text = "내려받는 중…"
+                            Thread {
+                                try {
+                                    Updater.install(applicationContext) { msg -> runOnUiThread { upd.text = msg } }
+                                } catch (e: Exception) {
+                                    runOnUiThread { upd.text = "업데이트 실패: ${e.message}" }
+                                }
+                            }.start()
+                        }
+                    }
+                } else if (latest > 0) {
+                    upd.text = "최신 버전이에요 ✓"
+                } else {
+                    upd.text = "업데이트 확인 실패"
+                }
+            }
+        }.start()
         root.addView(text(
             "홈 화면을 길게 누르고 → 위젯 → '타임트래커'를 끌어다 놓으세요.\n" +
                 "위젯의 ＋수면 / ＋기록 / ＋일정 / ＋할 일 을 누르면 작은 입력창이 떠요.\n" +

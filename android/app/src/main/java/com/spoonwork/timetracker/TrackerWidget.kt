@@ -66,6 +66,11 @@ class TrackerWidget : AppWidgetProvider() {
                 val from = minOf(gs, Data.weekStart(today))
                 val to = maxOf(ge, week7)
                 val j = Data.fetchSummary(ctx, today, from, to)
+                val pr = Data.prefs(ctx)
+                if (System.currentTimeMillis() - pr.getLong("latest_at", 0L) > 6 * 3600_000L) {
+                    pr.edit().putInt("latest", Updater.latestVersion())
+                        .putLong("latest_at", System.currentTimeMillis()).apply()
+                }
                 Data.saveCache(ctx, j)
                 Data.prefs(ctx).edit().remove("error").apply()
             } catch (e: java.net.UnknownHostException) {
@@ -125,6 +130,7 @@ class TrackerWidget : AppWidgetProvider() {
                 error != null -> "⚠ $error"
                 else -> "불러오는 중…"
             }
+            val hasUpdate = prefs.getInt("latest", -1) > Updater.currentVersion(context)
             val dark = Data.dark(context)
             val strip = drawStrip(cache?.optJSONArray("blocks"), dark)
             val mainColor = if (dark) Color.WHITE else Color.parseColor("#1F2937")
@@ -150,7 +156,8 @@ class TrackerWidget : AppWidgetProvider() {
                     else -> Data.prettyDay(today).replace("월 ", "/").replace("일 ", " ")
                 }
                 rv.setTextViewText(R.id.title, "$title ▾")
-                rv.setTextViewText(R.id.stats, if (loading && cache == null) "불러오는 중…" else stats)
+                rv.setTextViewText(R.id.stats,
+                    (if (loading && cache == null) "불러오는 중…" else stats) + if (hasUpdate) "  ⬆새 버전" else "")
                 rv.setTextViewText(R.id.btn_refresh, if (loading) "⋯" else "↻")
                 rv.setImageViewBitmap(R.id.strip, strip)
 
