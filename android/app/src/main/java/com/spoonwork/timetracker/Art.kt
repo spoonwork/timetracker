@@ -24,7 +24,8 @@ object Art {
         val eventId: Long = -1, // 구글 캘린더 일정이면 id
         val hour: Int = -1,     // 트래커 일정이면 시각
         val begin: Long = 0,
-        val end2: Long = 0
+        val end2: Long = 0,
+        val sheet: Boolean = false  // 작업 스프레드 칸
     )
 
     val PLAN_COLOR: Int = Color.parseColor("#5BB5A2")
@@ -63,6 +64,16 @@ object Art {
             var d = fromDs
             var guard = 0
             while (d <= toDs && guard++ < 70) {
+                // 작업 스프레드 '슾' 칸 (📅 스케쥴은 일정으로 이미 보이니 빼기)
+                val wt = days.optJSONObject(d)?.optJSONArray("wt")
+                if (wt != null) for (j in 0 until wt.length()) {
+                    val w = wt.optJSONObject(j) ?: continue
+                    val text = w.optString("text")
+                    if (text.isBlank() || text.startsWith("📅")) continue
+                    val col = if (w.optBoolean("done")) Color.argb(120, 0xEA, 0x99, 0x99) else SHEET_BAR
+                    out.add(Item((if (w.optBoolean("done")) "✓" else "") + text, col, d, d,
+                        Data.toCal(d).timeInMillis + 1L + j, "", sheet = true))
+                }
                 val p = days.optJSONObject(d)?.optJSONObject("p")
                 if (p != null) {
                     val ks = p.keys()
@@ -300,7 +311,7 @@ object Art {
         val lineH = 15 * u * fs
         val colTop = lineH * 0.78f      // 줄 높이를 똑같이 (위젯에서 줄마다 누를 수 있게)
         // 내용 줄 수만큼만 높이를 씀 (빈 공간 없이)
-        val todayItems = items(days, events, todayDs, todayDs).filter { it.start <= todayDs && it.end >= todayDs }
+        val todayItems = items(days, events, todayDs, todayDs).filter { it.start <= todayDs && it.end >= todayDs && !it.sheet }
         val todosArr = cache?.optJSONArray("todos")
         val wtArr = days?.optJSONObject(todayDs)?.optJSONArray("wt")
         val list = ((0 until (wtArr?.length() ?: 0)).mapNotNull { wtArr?.optJSONObject(it) }
