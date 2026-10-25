@@ -270,7 +270,7 @@ class TrackerWidget : AppWidgetProvider() {
             val off = prefs.getInt(if (isMonth) "moff_$id" else "woff_$id", 0)
 
             // 큰 시계 (이번 달 먼슬리에서만)
-            val showClock = isMonth && off == 0 && prefs.getBoolean("clock", true)
+            val showClock = isMonth && prefs.getBoolean("clock", true)
             rv.setViewVisibility(R.id.clock_box, if (showClock) android.view.View.VISIBLE else android.view.View.GONE)
             if (showClock) {
                 val week = arrayOf("일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일")
@@ -282,7 +282,7 @@ class TrackerWidget : AppWidgetProvider() {
             // 할 일 / 오늘 일정 (이번 달 먼슬리에서만)
             var headDp = 0f
             val maxH = maxOf(160, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 340))
-            if (isMonth && off == 0 && maxH > 330) {
+            if (isMonth && maxH > 330) {
                 val hb = Art.header(today, days, Cal.events(context, today, today), cache, light, bw)
                 rv.setImageViewBitmap(R.id.head_img, hb)
                 rv.setViewVisibility(R.id.head_img, android.view.View.VISIBLE)
