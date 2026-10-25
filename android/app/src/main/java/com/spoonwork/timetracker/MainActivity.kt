@@ -77,20 +77,8 @@ class MainActivity : Activity() {
                     }
                     upd.setTextColor(Color.WHITE)
                     upd.setOnClickListener {
-                        if (!packageManager.canRequestPackageInstalls()) {
-                            upd.text = "이 앱의 설치 허용을 켜고 돌아와서 다시 눌러주세요"
-                            startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                Uri.parse("package:$packageName")))
-                        } else {
-                            upd.text = "내려받는 중…"
-                            Thread {
-                                try {
-                                    Updater.install(applicationContext) { msg -> runOnUiThread { upd.text = msg } }
-                                } catch (e: Exception) {
-                                    runOnUiThread { upd.text = "업데이트 실패: ${e.message}" }
-                                }
-                            }.start()
-                        }
+                        // 크롬으로 새 설치 파일 받기 → 받은 파일 눌러서 설치
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Updater.APK_URL)))
                     }
                 } else if (latest > 0) {
                     upd.text = "최신 버전이에요 ✓"
