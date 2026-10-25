@@ -231,9 +231,10 @@ function workByDay(ss, fromDs, toDs, todayDs, tz) {
  *  녹색·파랑 = 작업일, 빨강 = 쉬는 날, 회색 = 콘티일. 노란색(오늘 표시)이면 옆 칸 색을 씀 */
 function workCalColors(fresh) {
   if (!WORKCAL_ID || WORKCAL_ID.indexOf('__') === 0) return {};
-  const cache = CacheService.getScriptCache();
-  const hit = cache.get('workcal_v2');
-  if (hit && !fresh) { try { return JSON.parse(hit); } catch (err) {} }
+  // 작업일은 거의 안 바뀌니까 한 번 읽은 걸 계속 씀 (웹 트래커 🔄 누를 때만 다시 읽음)
+  const props = PropertiesService.getScriptProperties();
+  const saved = props.getProperty('workcal_saved');
+  if (saved && !fresh) { try { return JSON.parse(saved); } catch (err) {} }
   const out = {}, prio = {};
   try {
     const wb = SpreadsheetApp.openById(WORKCAL_ID);
@@ -261,8 +262,13 @@ function workCalColors(fresh) {
   } catch (err) {
     return { _error: String(err) };
   }
-  try { cache.put('workcal_v2', JSON.stringify(out), 3600); } catch (err) {}
-  return out;
+  // 저장은 지난 2달 ~ 앞으로 5달만 (저장 용량 제한)
+  const lo = Utilities.formatDate(new Date(Date.now() - 62 * 86400000), 'Asia/Seoul', 'yyyy-MM-dd');
+  const hi = Utilities.formatDate(new Date(Date.now() + 155 * 86400000), 'Asia/Seoul', 'yyyy-MM-dd');
+  const keep = {};
+  Object.keys(out).forEach(function (k) { if (k >= lo && k <= hi) keep[k] = out[k]; });
+  try { props.setProperty('workcal_saved', JSON.stringify(keep)); } catch (err) {}
+  return keep;
 }
 
 function buildWidgetSummary(ss, date, fromDs, toDs) {
