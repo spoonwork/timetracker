@@ -38,7 +38,7 @@ function doGet(e) {
     setupAppDataSheet();
     const ss = openSS();
 
-    // 작업캘린더 구조 확인용 (날짜·색만)
+    // 작업캘린더 구조 확인용 (날짜·색만 반환)
     if (e && e.parameter && e.parameter.mode === 'workcal_debug') {
       return makeJsonResponse(workCalDebug(e.parameter.gid));
     }
