@@ -1304,13 +1304,21 @@ function renderDaily() {
         cellHtml = `<div class="pds-cell" data-min="${slotMinStart}" style="background: transparent;"></div>`;
       } else {
         const stops = [];
+        let prevEndPct = null;
         segments.forEach(seg => {
           const dur = seg.end - seg.start;
           const color = CONFIG.CATEGORIES[seg.category] || '#C8DBC8';
-          const startPct = (seg.start - slotMinStart) / 10 * 100;
-          const endPct = (seg.end - slotMinStart) / 10 * 100;
+          // 칸 안 위치(%) — 앞 조각과 겹치면 뒤로 밀어서 색이 번지지 않게
+          let startPct = Math.round((seg.start - slotMinStart) / 10 * 1000) / 10;
+          const endPct = Math.round((seg.end - slotMinStart) / 10 * 1000) / 10;
+          if (prevEndPct !== null && startPct < prevEndPct) startPct = prevEndPct;
+          if (endPct <= startPct) return;
+          if (prevEndPct !== null && startPct > prevEndPct) {
+            stops.push(`transparent ${prevEndPct}%`); stops.push(`transparent ${startPct}%`);
+          }
           stops.push(`${color} ${startPct}%`);
           stops.push(`${color} ${endPct}%`);
+          prevEndPct = endPct;
           
           const minutes = Math.round(dur);
           const durStr = minutes > 0 ? `${minutes}분` : `${Math.round(dur * 60)}초`;
@@ -1322,8 +1330,9 @@ function renderDaily() {
           stops.unshift(`transparent ${firstStart}%`);
           stops.unshift(`transparent 0%`);
         }
-        const lastEnd = (segments[segments.length-1].end - slotMinStart) / 10 * 100;
-        if (lastEnd < 100) {
+        const lastEnd = prevEndPct === null ? 0 : prevEndPct;
+        if (!stops.length) stops.push('transparent 0%', 'transparent 100%');
+        else if (lastEnd < 100) {
           stops.push(`transparent ${lastEnd}%`);
           stops.push(`transparent 100%`);
         }
@@ -2954,7 +2963,7 @@ function dedupeAutoLogs(byDate) {
       const st = Math.max(a.startMin, maxEnd);
       const en = a.startMin + dur;
       if (en - st < 1 / 60) return;          // 이미 센 시간
-      out.push({ ...a, startMin: st, durationSec: (en - st) * 60 });
+      out.push({ ...a, startMin: st, endMin: en, durationSec: (en - st) * 60 });
       maxEnd = Math.max(maxEnd, en);
     });
     byDate[d] = out;
