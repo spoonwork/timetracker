@@ -155,7 +155,36 @@ class MainActivity : Activity() {
                 views.add(v to col)
                 row.addView(v, LinearLayout.LayoutParams(dp(30), dp(30)).apply { marginEnd = dp(6) })
             }
-            paint()
+            // 컬러 써클에서 직접 고르기
+            val custom = TextView(this).apply {
+                gravity = Gravity.CENTER
+                text = "🎨"
+                textSize = 15f
+            }
+            fun paintCustom() {
+                val c0 = p.getInt(key, def ?: 0)
+                val isCustom = c0 != 0 && all.none { it == c0 }
+                custom.background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(if (isCustom) c0 else Color.WHITE)
+                    setStroke(dp(if (isCustom) 3 else 1), if (isCustom) Color.parseColor("#10B981") else Color.parseColor("#D1D5DB"))
+                }
+            }
+            custom.setOnClickListener {
+                val start = p.getInt(key, def ?: 0).takeIf { it != 0 } ?: Color.parseColor("#A8925A")
+                ColorPicker.show(this, start, title) { col ->
+                    p.edit().putInt(key, col).apply()
+                    paint(); paintCustom()
+                    TrackerWidget.render(applicationContext)
+                }
+            }
+            views.forEach { (v, _) -> v.setOnClickListener(null) }
+            views.forEach { (v, col) -> v.setOnClickListener {
+                p.edit().putInt(key, col).apply(); paint(); paintCustom()
+                TrackerWidget.render(applicationContext)
+            } }
+            row.addView(custom, LinearLayout.LayoutParams(dp(34), dp(34)))
+            paint(); paintCustom()
             root.addView(android.widget.HorizontalScrollView(this).apply { addView(row) })
             root.addView(gap(8))
         }
