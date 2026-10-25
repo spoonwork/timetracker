@@ -145,6 +145,15 @@ class MainActivity : Activity() {
         root.addView(gap(8))
 
         root.addView(Switch(this).apply {
+            text = "먼슬리 위젯에 큰 시계"
+            textSize = 15f
+            isChecked = p.getBoolean("clock", true)
+            setOnCheckedChangeListener { _, on ->
+                p.edit().putBoolean("clock", on).apply()
+                TrackerWidget.render(applicationContext)
+            }
+        })
+        root.addView(Switch(this).apply {
             text = "구글 캘린더 일정 같이 보기"
             textSize = 15f
             isChecked = Cal.enabled(this@MainActivity)

@@ -189,7 +189,16 @@ class TrackerWidget : AppWidgetProvider() {
                     val opts = mgr.getAppWidgetOptions(id)
                     val dens = context.resources.displayMetrics.density
                     val wDp = maxOf(200, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 300)) - 24
-                    val hDp = maxOf(160, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 340)) - 60
+                    val showClock = view == "month" && Data.prefs(context).getBoolean("clock", true)
+                    rv.setViewVisibility(R.id.clock_box, if (showClock) android.view.View.VISIBLE else android.view.View.GONE)
+                    if (showClock) {
+                        val week = arrayOf("일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일")
+                        val now = java.util.Calendar.getInstance()
+                        rv.setTextViewText(R.id.clock_date, "${now.get(java.util.Calendar.MONTH) + 1}월 ${now.get(java.util.Calendar.DAY_OF_MONTH)}일 " +
+                            week[now.get(java.util.Calendar.DAY_OF_WEEK) - 1] + "  ·  " + Cal.ganji(Data.fmt(now)) + "日")
+                    }
+                    val hDp = maxOf(160, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 340)) - 60 -
+                        (if (showClock) 150 else 0)
                     val scale = minOf(dens, 1000f / wDp)
                     val bw = (wDp * scale).toInt()
                     val bh = (maxOf(120, hDp) * scale).toInt()

@@ -78,6 +78,7 @@ function doGet(e) {
     return makeJsonResponse({
       ok: true,
       logs: logsData,
+      workCal: appDataOnly ? undefined : workCalColors(e && e.parameter && e.parameter.fresh === '1'),
       manual: manualData,
       appData: appDataObj,
       timestamp: new Date().toISOString(),
@@ -228,11 +229,11 @@ function workByDay(ss, fromDs, toDs, todayDs, tz) {
 
 /** 작업 캘린더 날짜칸 색 → {yyyy-MM-dd: '#rrggbb'} (3시간 캐시)
  *  녹색·파랑 = 작업일, 빨강 = 쉬는 날, 회색 = 콘티일. 노란색(오늘 표시)이면 옆 칸 색을 씀 */
-function workCalColors() {
+function workCalColors(fresh) {
   if (!WORKCAL_ID || WORKCAL_ID.indexOf('__') === 0) return {};
   const cache = CacheService.getScriptCache();
   const hit = cache.get('workcal_v2');
-  if (hit) { try { return JSON.parse(hit); } catch (err) {} }
+  if (hit && !fresh) { try { return JSON.parse(hit); } catch (err) {} }
   const out = {}, prio = {};
   try {
     const wb = SpreadsheetApp.openById(WORKCAL_ID);
@@ -260,7 +261,7 @@ function workCalColors() {
   } catch (err) {
     return { _error: String(err) };
   }
-  try { cache.put('workcal_v2', JSON.stringify(out), 10800); } catch (err) {}
+  try { cache.put('workcal_v2', JSON.stringify(out), 3600); } catch (err) {}
   return out;
 }
 

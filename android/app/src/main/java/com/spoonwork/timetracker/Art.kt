@@ -129,7 +129,7 @@ object Art {
 
         // 세로로 길면 위에 오늘 날짜 + 일정 + 할 일
         var top = 0f
-        if (H > W * 1.15f) {
+        if (H > W * 0.95f) {
             top = drawHeader(c, p, u, W, minOf(H * 0.30f, 170 * u), todayDs, days, events, cache, main, sub)
         }
 
@@ -264,24 +264,8 @@ object Art {
         c: Canvas, p: Paint, u: Float, W: Int, h: Float, todayDs: String, days: JSONObject?,
         events: List<Cal.Ev>, cache: JSONObject?, main: Int, sub: Int
     ): Float {
-        val cal = Data.toCal(todayDs)
-        val week = arrayOf("일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일")
         val pad = 8 * u
-
-        // 날짜 한 줄 (큰 시계는 폰 기본 시계 위젯을 쓰는 걸 추천)
-        p.textAlign = Paint.Align.LEFT
-        p.typeface = Typeface.DEFAULT_BOLD
-        p.textSize = 12 * u
-        p.color = main
-        val dateText = "${cal.get(Calendar.MONTH) + 1}월 ${cal.get(Calendar.DAY_OF_MONTH)}일 " + week[cal.get(Calendar.DAY_OF_WEEK) - 1]
-        c.drawText(dateText, pad, 14 * u, p)
-        val dw = p.measureText(dateText)
-        p.typeface = Typeface.DEFAULT
-        p.textSize = 9 * u
-        p.color = sub
-        c.drawText("  " + Cal.ganji(todayDs) + "日", pad + dw, 14 * u, p)
-
-        val colTop = 34 * u
+        val colTop = 12 * u
         val lineH = 14 * u
         // 내용 줄 수만큼만 높이를 씀 (빈 공간 없이)
         val todayItems = items(days, events, todayDs, todayDs).filter { it.start <= todayDs && it.end >= todayDs }

@@ -369,7 +369,7 @@
     border-right: 1px solid var(--line-soft);
     border-bottom: 1px solid var(--line-soft);
     min-height: 70px;
-    padding: 6px;
+    padding: 9px 6px 6px;
     cursor: pointer;
     position: relative;
     transition: background 0.15s;
@@ -393,6 +393,13 @@
     letter-spacing: 0.5px;
   }
   .m-day .m-bars { display: flex; flex-direction: column; gap: 2px; }
+  /* 작업 캘린더 날짜 색 (녹색·파랑 작업일 / 빨강 쉬는 날 / 회색 콘티) — 같은 색은 이어짐 */
+  .m-day .m-wc {
+    position: absolute; top: 2px; left: 4px; right: 4px; height: 4px;
+    border-radius: 3px; z-index: 1; pointer-events: none;
+  }
+  .m-day .m-wc.jl { left: -1px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+  .m-day .m-wc.jr { right: -1px; border-top-right-radius: 0; border-bottom-right-radius: 0; }
   .m-day .m-bar {
     height: 4px; background: var(--c-work); border-radius: 1px;
     transition: opacity 0.15s;
@@ -2126,6 +2133,15 @@ function renderMonthly() {
     const wtCfgsM = wtM.map(k => CONFIG.WORK_TYPE[k]).filter(Boolean);
     const wtBorderM = wtCfgsM.length ? `border-top: 3px solid ${wtCfgsM[0].color};` : '';
     let dayHtml = `<div class="m-day${todayClass}" data-date="${dateStr}"${holidayTip} style="${wtBorderM}">`;
+    // 작업 캘린더 색 줄 (같은 주에서 같은 색이 이어지면 붙여서)
+    const wc = (state.workCal || {})[dateStr];
+    if (wc) {
+      const prevDs = fmtDate(new Date(year, month, dt - 1));
+      const nextDs = fmtDate(new Date(year, month, dt + 1));
+      const jl = dow > 0 && dt > 1 && (state.workCal[prevDs] === wc);
+      const jr = dow < 6 && dt < lastDay.getDate() && (state.workCal[nextDs] === wc);
+      dayHtml += `<div class="m-wc${jl ? ' jl' : ''}${jr ? ' jr' : ''}" style="background:${wc}"></div>`;
+    }
     const wtEmojiM = wtCfgsM.map(c => `<span style="font-size:10px;" title="${c.label}">${c.emoji}</span>`).join('');
     const wtEmojiWrapM = wtEmojiM ? `<span style="float:right;">${wtEmojiM}</span>` : '';
     dayHtml += `<div class="m-date ${dateClass}">${dt}<span class="m-ganji">${dayGanji.text}</span>${wtEmojiWrapM}</div>`;
@@ -2459,8 +2475,8 @@ function showCellInfo(text) {
 }
 
 // ===== Apps Script 연동 =====
-async function fetchAllData() {
-  const url = CONFIG.APPS_SCRIPT_URL;
+async function fetchAllData(fresh) {
+  const url = CONFIG.APPS_SCRIPT_URL + (fresh ? '?fresh=1' : '');
   const res = await fetch(url, { method: 'GET', redirect: 'follow' });
   const json = await res.json();
   if (!json.ok) throw new Error(json.error || 'Unknown error');
@@ -2809,7 +2825,7 @@ async function syncFromSheets(manual = false) {
     if (manual) { statusEl.textContent = '동기화 중...'; statusEl.classList.remove('error'); }
     if (syncBtn) syncBtn.style.opacity = '0.5';
 
-    const data = await fetchAllData();
+    const data = await fetchAllData(manual);
     state.autoLogs = processLogsRows(data.logs || []);
     // work_type 탭 로드
     if (data.workTypes) {
@@ -2819,6 +2835,7 @@ async function syncFromSheets(manual = false) {
     }
     const sheetManual = processManualSheetRows(data.manual || []);
     applyAppData(data.appData || {});
+    if (data.workCal && !data.workCal._error) state.workCal = data.workCal;
 
     Object.keys(sheetManual).forEach(d => {
       if (!state.manualBlocks[d] || state.manualBlocks[d].length === 0) {
