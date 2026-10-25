@@ -52,7 +52,8 @@ class QuickActivity : Activity() {
     private lateinit var planStartBtn: TextView
     private lateinit var planEndBtn: TextView
     private lateinit var gcalCheck: android.widget.CheckBox
-    private lateinit var shareCheck: android.widget.CheckBox      // 일정: 작업 스프레드에 내용 공개
+    private var sheetMode = 1          // 일정 → 작업 스프레드: 0 안 함, 1 '📅 스케쥴'만, 2 내용 공개
+    private lateinit var sheetRadios: List<android.widget.RadioButton>
     private lateinit var wtCheck: android.widget.CheckBox         // 할 일: 작업 스프레드에도
     private lateinit var planEdit: EditText
     private lateinit var paneTodo: LinearLayout
@@ -221,13 +222,21 @@ class QuickActivity : Activity() {
         }
         panePlan.addView(gcalCheck, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(48) })
-        shareCheck = android.widget.CheckBox(this).apply {
-            text = "작업 스프레드에 내용 공개 (끄면 '📅 스케쥴'로만)"
-            textSize = 13f
-            isChecked = false
-            setTextColor(textMain)
+        panePlan.addView(label("작업 스프레드(슾)에", 12f).apply { setPadding(dp(52), dp(6), 0, 0) })
+        val rg = android.widget.RadioGroup(this).apply { orientation = android.widget.RadioGroup.HORIZONTAL }
+        sheetRadios = listOf("안 적음", "📅 스케쥴로만", "내용 공개").mapIndexed { i, s ->
+            android.widget.RadioButton(this).apply {
+                id = 700 + i
+                text = s
+                textSize = 13f
+                setTextColor(textMain)
+                setOnClickListener { sheetMode = i }
+            }
         }
-        panePlan.addView(shareCheck, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+        sheetRadios.forEach { rg.addView(it) }
+        sheetMode = Data.prefs(this).getInt("sheet_mode", 1)
+        sheetRadios[sheetMode].isChecked = true
+        panePlan.addView(rg, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(48) })
         root.addView(panePlan)
 
@@ -353,8 +362,11 @@ class QuickActivity : Activity() {
         planEdit.setText(existing)
         planEdit.setSelection(planEdit.text.length)
         editHour = if (existing.isBlank()) null else planHour
-        val wl = if (existing.isBlank()) null else Data.prefs(this).getString("wlnk_${day}_$planHour", null)
-        shareCheck.isChecked = wl != null && wl != "📅 스케쥴"
+        if (existing.isNotBlank()) {
+            val wl = Data.prefs(this).getString("wlnk_${day}_$planHour", null)
+            sheetMode = if (wl == null) 0 else if (wl == "📅 스케쥴") 1 else 2
+        } else sheetMode = Data.prefs(this).getInt("sheet_mode", 1)
+        sheetRadios[sheetMode].isChecked = true
         val link = if (existing.isBlank()) null else Cal.link(applicationContext, day, planHour)
         if (link != null) {
             // 구글 캘린더에 넣었던 시간 그대로 불러오기
@@ -570,14 +582,19 @@ class QuickActivity : Activity() {
                 val want = gcalCheck.isChecked
                 // 작업 스프레드 '슾' 칸: 공개면 내용, 아니면 '📅 스케쥴'
                 val pr = Data.prefs(this)
-                val sheetText = "📅 " + (if (shareCheck.isChecked)
-                    String.format(Locale.US, "%02d:%02d ", newH % 24, pm) + text else "스케쥴")
                 val oldSheet = oldH?.let { pr.getString("wlnk_${d}_$it", null) }
-                if (oldSheet == null) ops.put(Data.op("wt_add", d).put("text", sheetText))
-                else if (oldSheet != sheetText) ops.put(Data.op("wt_edit", d).put("old", oldSheet).put("text", sheetText))
                 val ed = pr.edit()
                 if (oldH != null) ed.remove("wlnk_${d}_$oldH")
-                ed.putString("wlnk_${d}_$newH", sheetText).apply()
+                if (sheetMode == 0) {
+                    if (oldSheet != null) ops.put(Data.op("wt_del", d).put("text", oldSheet))
+                } else {
+                    val sheetText = "📅 " + (if (sheetMode == 2)
+                        String.format(Locale.US, "%02d:%02d ", newH % 24, pm) + text else "스케쥴")
+                    if (oldSheet == null) ops.put(Data.op("wt_add", d).put("text", sheetText))
+                    else if (oldSheet != sheetText) ops.put(Data.op("wt_edit", d).put("old", oldSheet).put("text", sheetText))
+                    ed.putString("wlnk_${d}_$newH", sheetText)
+                }
+                ed.putInt("sheet_mode", sheetMode).apply()
                 commit("일정 저장", ops)
                 editHour = newH
                 val ctx = applicationContext
