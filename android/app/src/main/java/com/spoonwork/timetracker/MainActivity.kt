@@ -65,28 +65,32 @@ class MainActivity : Activity() {
         // 업데이트 확인
         val upd = button("업데이트 확인 중…") {}
         root.addView(upd)
-        Thread {
-            val latest = Updater.latestVersion()
-            val cur = Updater.currentVersion(this)
-            p.edit().putInt("latest", latest).putLong("latest_at", System.currentTimeMillis()).apply()
-            runOnUiThread {
-                if (latest > cur) {
-                    upd.text = "⬆ 새 버전 v$latest 업데이트"
-                    upd.background = GradientDrawable().apply {
-                        cornerRadius = dp(12).toFloat(); setColor(Color.parseColor("#3B82F6"))
+        fun checkUpdate() {
+            upd.text = "업데이트 확인 중…"
+            upd.setOnClickListener(null)
+            Thread {
+                val latest = Updater.latestVersion()
+                val cur = Updater.currentVersion(this)
+                if (latest > 0) p.edit().putInt("latest", latest).putLong("latest_at", System.currentTimeMillis()).apply()
+                runOnUiThread {
+                    if (latest > cur) {
+                        upd.text = "⬆ 새 버전 v$latest 업데이트 (지금 v$cur)"
+                        upd.background = GradientDrawable().apply {
+                            cornerRadius = dp(12).toFloat(); setColor(Color.parseColor("#3B82F6"))
+                        }
+                        upd.setTextColor(Color.WHITE)
+                        upd.setOnClickListener {
+                            // 크롬으로 새 설치 파일 받기 → 받은 파일 눌러서 설치
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Updater.APK_URL)))
+                        }
+                    } else {
+                        upd.text = if (latest > 0) "최신 버전이에요 ✓ (v$cur) · 눌러서 다시 확인" else "업데이트 확인 실패 · 눌러서 다시 확인"
+                        upd.setOnClickListener { checkUpdate() }
                     }
-                    upd.setTextColor(Color.WHITE)
-                    upd.setOnClickListener {
-                        // 크롬으로 새 설치 파일 받기 → 받은 파일 눌러서 설치
-                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Updater.APK_URL)))
-                    }
-                } else if (latest > 0) {
-                    upd.text = "최신 버전이에요 ✓"
-                } else {
-                    upd.text = "업데이트 확인 실패"
                 }
-            }
-        }.start()
+            }.start()
+        }
+        checkUpdate()
         root.addView(text(
             "홈 화면을 길게 누르고 → 위젯 → '타임트래커'를 끌어다 놓으세요.\n" +
                 "위젯의 ＋수면 / ＋기록 / ＋일정 / ＋할 일 을 누르면 작은 입력창이 떠요.\n" +

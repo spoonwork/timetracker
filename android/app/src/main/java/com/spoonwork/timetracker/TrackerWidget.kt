@@ -131,7 +131,7 @@ class TrackerWidget : AppWidgetProvider() {
                 val j = Data.fetchSummary(ctx, today, from, to, fresh)
                 if (fresh) pr0.edit().remove("fresh_next").apply()
                 val pr = Data.prefs(ctx)
-                if (System.currentTimeMillis() - pr.getLong("latest_at", 0L) > 6 * 3600_000L) {
+                if (fresh || System.currentTimeMillis() - pr.getLong("latest_at", 0L) > 6 * 3600_000L) {
                     pr.edit().putInt("latest", Updater.latestVersion())
                         .putLong("latest_at", System.currentTimeMillis()).apply()
                 }
