@@ -87,6 +87,27 @@ object Art {
         c.drawText(t, r.left + pad, r.centerY() + ts * 0.36f, p)
     }
 
+    /** 같은 색이 이어지는 날은 한 줄로 이어서 그림 */
+    private fun colorRuns(c: Canvas, p: Paint, dayColors: JSONObject?, days: List<String>,
+                          cw: Float, top: Float, bottom: Float, u: Float, dim: (String) -> Boolean) {
+        if (dayColors == null) return
+        var i = 0
+        while (i < days.size) {
+            val col = dayColors.optString(days[i], "")
+            if (!col.startsWith("#")) { i++; continue }
+            var j = i
+            while (j + 1 < days.size && dayColors.optString(days[j + 1], "") == col) j++
+            try {
+                p.style = Paint.Style.FILL
+                p.color = Color.parseColor(col)
+                if (dim(days[i])) p.alpha = 90
+                c.drawRoundRect(RectF(cw * i + 3 * u, top, cw * (j + 1) - 3 * u, bottom), u, u, p)
+                p.alpha = 255
+            } catch (_: Exception) {}
+            i = j + 1
+        }
+    }
+
     private fun workMax(days: JSONObject?, ds: List<String>): Int {
         var m = 3600
         if (days != null) for (d in ds) m = maxOf(m, days.optJSONObject(d)?.optInt("w") ?: 0)
@@ -145,6 +166,9 @@ object Art {
             val y = hh + r * ch
             val week = cells.subList(r * 7, r * 7 + 7)
 
+            // 작업 캘린더 색 줄 (숫자 위, 같은 색은 이어서)
+            colorRuns(c, p, dayColors, week, cw, y + 2 * u, y + 4.5f * u, u) { d -> !inMonth(d) }
+
             // 날짜 칸
             for (i in 0..6) {
                 val ds = week[i]
@@ -162,16 +186,6 @@ object Art {
                 p.textSize = 11.5f * u
                 p.textAlign = Paint.Align.CENTER
                 val cx = x + cw / 2
-                // 작업 캘린더 색 줄 (숫자 위)
-                val dc = dayColors?.optString(ds, "") ?: ""
-                if (dc.startsWith("#")) {
-                    try {
-                        p.color = Color.parseColor(dc)
-                        if (!cur) p.alpha = 90
-                        c.drawRoundRect(RectF(x + 3 * u, y + 2 * u, x + cw - 3 * u, y + 4.5f * u), u, u, p)
-                        p.alpha = 255
-                    } catch (_: Exception) {}
-                }
                 p.typeface = Typeface.DEFAULT_BOLD
                 p.textSize = 11.5f * u
                 p.textAlign = Paint.Align.CENTER
@@ -338,6 +352,7 @@ object Art {
         val maxW = workMax(days, ds7)
         val all = items(days, events, ds7.first(), ds7.last())
 
+        colorRuns(c, p, dayColors, ds7, cw, 0.5f * u, 3 * u, u) { false }
         for (i in 0..6) {
             val ds = ds7[i]
             val x = cw * i
@@ -347,13 +362,6 @@ object Art {
             if (ds == todayDs) {
                 p.color = if (dark) Color.parseColor("#1AFFFFFF") else Color.parseColor("#0F10B981")
                 c.drawRoundRect(RectF(x + u, 0f, x + cw - u, H.toFloat()), 6 * u, 6 * u, p)
-            }
-            val dc = dayColors?.optString(ds, "") ?: ""
-            if (dc.startsWith("#")) {
-                try {
-                    p.color = Color.parseColor(dc)
-                    c.drawRoundRect(RectF(x + 3 * u, 0.5f * u, x + cw - 3 * u, 3 * u), u, u, p)
-                } catch (_: Exception) {}
             }
             p.textAlign = Paint.Align.CENTER
             p.typeface = Typeface.DEFAULT
