@@ -427,7 +427,10 @@
     padding: 5px 0; font-size: 13px;
   }
   .memo-list .item.done span:not(.cb):not(.todo-del):not(.wt-tag) { color: var(--text-muted); text-decoration: line-through; }
-  .wt-tag { font-size: 10px; color: #fff; background: #E85A5A; border-radius: 4px; padding: 0 4px; margin-left: 4px; flex-shrink: 0; }
+  .wt-tag { font-size: 10px; color: #fff; background: #E06666; border-radius: 4px; padding: 0 4px; margin-left: 4px; flex-shrink: 0; }
+  .memo-list .item.wt-item { border-left: 4px solid #EA9999; padding-left: 6px; }
+  .memo-list .item.wt-item .cb { border-color: #E06666; }
+  .memo-list .item.wt-item .cb.checked { background: #E06666; }
   .todo-del {
     margin-left: auto; padding: 0 4px; cursor: pointer;
     color: var(--text-muted); opacity: 0.35; font-size: 12px; line-height: 18px;
@@ -1822,7 +1825,7 @@ function renderTodos() {
     fb.onclick = () => { state.wtOnly = !state.wtOnly; renderTodos(); };
   }
   const wtHtml = wt.map((w, i) => `
-    <div class="item ${w.done ? 'done' : ''}">
+    <div class="item wt-item ${w.done ? 'done' : ''}">
       <span class="cb wt-cb ${w.done ? 'checked' : ''}" data-widx="${i}"></span>
       <span>${escapeHtml(w.text)}</span><span class="wt-tag">작업</span>
     </div>`).join('');

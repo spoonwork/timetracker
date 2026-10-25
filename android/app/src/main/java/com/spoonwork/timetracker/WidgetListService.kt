@@ -177,8 +177,9 @@ class WidgetListService : RemoteViewsService() {
                     rv.setTextColor(R.id.text, if (r.done) doneC else mainC)
                     rv.setTextViewText(R.id.text, r.text)
                     rv.setTextViewText(R.id.lead, if (r.done) "☑" else "☐")
-                    rv.setTextColor(R.id.lead, if (r.work) Color.parseColor("#E85A5A")
+                    rv.setTextColor(R.id.lead, if (r.work) Art.SHEET_CHECK
                         else if (r.done) Color.parseColor("#10B981") else mainC)
+                    rv.setViewVisibility(R.id.wbar, if (r.work) android.view.View.VISIBLE else android.view.View.GONE)
                     if (r.work) {
                         rv.setOnClickFillInIntent(R.id.row, Intent().putExtra("type", "wt").putExtra("text", r.text)
                             .putExtra("day", r.day).putExtra("done", !r.done))

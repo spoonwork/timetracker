@@ -24,6 +24,9 @@ object Art {
     )
 
     val PLAN_COLOR: Int = Color.parseColor("#5BB5A2")
+    /** 작업 스프레드 '슾' 줄 색 (분홍) */
+    val SHEET_BAR: Int = Color.parseColor("#EA9999")
+    val SHEET_CHECK: Int = Color.parseColor("#E06666")
 
     /** 사용자 설정: 글자색(없으면 자동), 글자 크기 배율 */
     var textOverride: Int? = null
@@ -291,7 +294,7 @@ object Art {
         val todosArr = cache?.optJSONArray("todos")
         val wtArr = days?.optJSONObject(todayDs)?.optJSONArray("wt")
         val list = ((0 until (wtArr?.length() ?: 0)).mapNotNull { wtArr?.optJSONObject(it) }
-            .filter { !it.optString("text").startsWith("📅") } +
+            .filter { !it.optString("text").startsWith("📅") }.map { JSONObject(it.toString()).put("_wt", true) } +
             (0 until (todosArr?.length() ?: 0)).mapNotNull { todosArr?.optJSONObject(it) })
             .filter { it.optString("text").isNotBlank() }
         val capLines = maxOf(1, ((h - colTop - 4 * u) / lineH).toInt())
@@ -314,8 +317,20 @@ object Art {
         var y = colTop + lineH
         list.take(maxLines).forEach { t ->
             val d = t.optBoolean("done")
+            val isWt = t.optBoolean("_wt")
+            var x = pad
+            if (isWt) {
+                // 작업 스프레드 것은 왼쪽 분홍 막대 + 분홍 체크
+                p.color = SHEET_BAR
+                c.drawRoundRect(RectF(pad, y - 9 * u * fs, pad + 2.5f * u, y + 2 * u), u, u, p)
+                x = pad + 6 * u
+            }
+            p.color = if (isWt) SHEET_CHECK else if (d) sub else main
+            val box = if (d) "☑ " else "☐ "
+            c.drawText(box, x, y, p)
+            val bw = p.measureText(box)
             p.color = if (d) sub else main
-            c.drawText(fit(p, (if (d) "☑ " else "☐ ") + t.optString("text"), half - pad - 6 * u), pad, y, p)
+            c.drawText(fit(p, t.optString("text"), half - x - bw - 6 * u), x + bw, y, p)
             y += lineH
         }
         if (list.isEmpty()) { p.color = sub; c.drawText("없음", pad, y, p) }
