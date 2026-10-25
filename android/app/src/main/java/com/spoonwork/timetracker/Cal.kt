@@ -133,19 +133,44 @@ object Cal {
     } catch (e: Exception) { false }
 
     // ---- 트래커 일정 ↔ 구글 캘린더 일정 연결 (폰에 저장) ----
-    data class Link(val id: Long, val begin: Long, val end: Long)
+    /** title: 연결할 때 일정 글자 (다른 기기에서 글자가 바뀌었는지 비교용), at: 연결/수정한 시각 */
+    data class Link(val id: Long, val begin: Long, val end: Long,
+                    val title: String = "", val at: Long = System.currentTimeMillis())
+
+    private fun parseLink(s: String): Link? {
+        val p = s.split("|", limit = 5)
+        return try {
+            Link(p[0].toLong(), p[1].toLong(), p[2].toLong(),
+                if (p.size > 4) p[4] else "", if (p.size > 3) p[3].toLong() else 0L)
+        } catch (e: Exception) { null }
+    }
 
     fun link(c: Context, day: String, h: Int): Link? {
         val s = Data.prefs(c).getString("lnk_${day}_$h", null) ?: return null
-        val p = s.split("|")
-        return try { Link(p[0].toLong(), p[1].toLong(), p[2].toLong()) } catch (e: Exception) { null }
+        return parseLink(s)
     }
+
+    /** 연결된 일정 전부: (날짜, 시) → Link */
+    fun allLinks(c: Context): List<Triple<String, Int, Link>> =
+        Data.prefs(c).all.entries.mapNotNull { (k, v) ->
+            if (!k.startsWith("lnk_")) return@mapNotNull null
+            val rest = k.removePrefix("lnk_")
+            val i = rest.lastIndexOf('_')
+            if (i < 0) return@mapNotNull null
+            val h = rest.substring(i + 1).toIntOrNull() ?: return@mapNotNull null
+            val l = (v as? String)?.let { parseLink(it) } ?: return@mapNotNull null
+            Triple(rest.substring(0, i), h, l)
+        }
 
     fun setLink(c: Context, day: String, h: Int, l: Link?) {
         val e = Data.prefs(c).edit()
-        if (l == null) e.remove("lnk_${day}_$h") else e.putString("lnk_${day}_$h", "${l.id}|${l.begin}|${l.end}")
+        if (l == null) e.remove("lnk_${day}_$h")
+        else e.putString("lnk_${day}_$h", "${l.id}|${l.begin}|${l.end}|${l.at}|${l.title}")
         e.apply()
     }
+
+    fun canWrite(c: Context): Boolean =
+        enabled(c) && c.checkSelfPermission(Manifest.permission.WRITE_CALENDAR) == PackageManager.PERMISSION_GRANTED
 
     fun linkedIds(c: Context): Set<Long> =
         Data.prefs(c).all.filterKeys { it.startsWith("lnk_") }.values

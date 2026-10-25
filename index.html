@@ -2553,8 +2553,61 @@ async function saveToRemote(key, value) {
   return json;
 }
 
+// ===== 칸 단위 저장: 마지막으로 받아온 상태(syncBase)와 비교해서 바뀐 칸만 보냄 =====
+// 폰·다른 창에서 고친 건 덮어쓰지 않도록
+const SYNC_KEYS = ['manualBlocks', 'todos', 'hourPlans', 'hourMarkers', 'hourChecks', 'hourAlign', 'see', 'workTypes'];
+let syncBase = null;
+let needSaveAfterSync = false;
+const isPlainObj = v => v && typeof v === 'object' && !Array.isArray(v);
+function snapshotSync() {
+  const o = {};
+  SYNC_KEYS.forEach(k => { o[k] = JSON.parse(JSON.stringify(state[k] || {})); });
+  return o;
+}
+function diffOps(base, cur) {
+  const ops = [];
+  const todayDs = fmtDate(new Date(Date.now() - CONFIG.DAY_START_HOUR * 3600000));
+  SYNC_KEYS.forEach(k => {
+    const a = base[k] || {}, b = cur[k] || {};
+    new Set([...Object.keys(a), ...Object.keys(b)]).forEach(d => {
+      const av = a[d], bv = b[d];
+      if (JSON.stringify(av) === JSON.stringify(bv)) return;
+      if (isPlainObj(av) && isPlainObj(bv) || (k.startsWith('hour') && (isPlainObj(av) || isPlainObj(bv)))) {
+        const ao = isPlainObj(av) ? av : {}, bo = isPlainObj(bv) ? bv : {};
+        new Set([...Object.keys(ao), ...Object.keys(bo)]).forEach(sk => {
+          if (JSON.stringify(ao[sk]) === JSON.stringify(bo[sk])) return;
+          ops.push({ t: 'patch', k, p: [d, sk], v: bo[sk] === undefined ? null : bo[sk] });
+          // 새로 적거나 고친 일정 → 폰이 구글 캘린더에도 넣어줌
+          if (k === 'hourPlans' && bo[sk] && String(bo[sk]).trim() && d >= todayDs && gcalFromWeb()) {
+            ops.push({ t: 'patch', k: 'gcalWant', p: [d, sk], v: 1 });
+          }
+        });
+      } else {
+        ops.push({ t: 'patch', k, p: [d], v: bv === undefined ? null : bv });
+      }
+    });
+  });
+  return ops;
+}
+function applyOpsLocal(ops) {
+  ops.forEach(o => {
+    if (!SYNC_KEYS.includes(o.k)) return;
+    const root = state[o.k] = state[o.k] || {};
+    if (o.p.length === 1) {
+      if (o.v === null) delete root[o.p[0]]; else root[o.p[0]] = o.v;
+    } else {
+      const dd = isPlainObj(root[o.p[0]]) ? root[o.p[0]] : (root[o.p[0]] = {});
+      if (o.v === null) delete dd[o.p[1]]; else dd[o.p[1]] = o.v;
+      if (!Object.keys(dd).length) delete root[o.p[0]];
+    }
+  });
+}
+function gcalFromWeb() {
+  try { return localStorage.getItem('gcalFromWeb') !== '0'; } catch (e) { return true; }
+}
+
 function scheduleRemoteSave() {
-  if (isSyncing) return;
+  if (isSyncing) { needSaveAfterSync = true; return; }
   if (pendingSaveTimer) clearTimeout(pendingSaveTimer);
   pendingSaveTimer = setTimeout(async () => {
     pendingSaveTimer = null;
@@ -2569,14 +2622,18 @@ async function saveAllAppData() {
   try {
     statusEl.textContent = '저장 중...';
     statusEl.classList.remove('error');
-    await saveToRemote('manualBlocks', state.manualBlocks);
-    await saveToRemote('todos', state.todos);
-    await saveToRemote('hourPlans', state.hourPlans);
-    await saveToRemote('hourMarkers', state.hourMarkers);
-    await saveToRemote('hourChecks', state.hourChecks);
-    await saveToRemote('hourAlign', state.hourAlign);
-    await saveToRemote('see', state.see);
-    await saveToRemote('workTypes', state.workTypes);
+    if (!syncBase) {
+      // 아직 한 번도 못 받아왔으면 시트 상태를 기준으로
+      const r = await fetch(CONFIG.APPS_SCRIPT_URL + '?mode=appdata', { redirect: 'follow' });
+      const j = await r.json();
+      const ad = j.appData || {};
+      syncBase = {};
+      SYNC_KEYS.forEach(k => { syncBase[k] = ad[k] || {}; });
+    }
+    const next = snapshotSync();
+    const ops = diffOps(syncBase, next);
+    for (let i = 0; i < ops.length; i += 300) await sendOps(ops.slice(i, i + 300));
+    syncBase = next;
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     statusEl.textContent = `저장됨 (${timeStr})`;
@@ -2875,6 +2932,9 @@ document.addEventListener('click', (e) => {
 
 async function syncFromSheets(manual = false) {
   if (isSyncing) return;
+  // 저장 안 된 수정이 있으면 먼저 저장하고 받아오기
+  if (pendingSaveTimer) { clearTimeout(pendingSaveTimer); pendingSaveTimer = null; await saveAllAppData(); }
+  if (isSavingRemote) return;
   isSyncing = true;
   const statusEl = document.getElementById('status');
   const syncBtn = document.getElementById('btn-sync');
@@ -2891,6 +2951,8 @@ async function syncFromSheets(manual = false) {
       });
     }
     const sheetManual = processManualSheetRows(data.manual || []);
+    // 받아오는 사이에 여기서 고친 게 있으면 받아온 뒤에 다시 얹기
+    const localOps = syncBase ? diffOps(syncBase, snapshotSync()).filter(o => o.k !== 'gcalWant') : [];
     applyAppData(data.appData || {});
     if (data.workCal && !data.workCal._error) state.workCal = data.workCal;
     if (data.workTasks && !data.workTasks._error) state.workTasks = data.workTasks;
@@ -2900,6 +2962,9 @@ async function syncFromSheets(manual = false) {
         state.manualBlocks[d] = sheetManual[d];
       }
     });
+
+    syncBase = snapshotSync();
+    if (localOps.length) { applyOpsLocal(localOps); needSaveAfterSync = true; }
 
     saveToLocal();
     render();
@@ -2915,6 +2980,7 @@ async function syncFromSheets(manual = false) {
   } finally {
     isSyncing = false;
     if (syncBtn) syncBtn.style.opacity = '1';
+    if (needSaveAfterSync) { needSaveAfterSync = false; scheduleRemoteSave(); }
   }
 }
 </script>

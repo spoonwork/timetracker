@@ -616,7 +616,7 @@ class QuickActivity : Activity() {
                     link != null && want -> withCal {
                         Cal.update(ctx, link.id, text, begin, end)
                         if (oldH != newH) Cal.setLink(ctx, d, oldH!!, null)
-                        Cal.setLink(ctx, d, newH, Cal.Link(link.id, begin, end))
+                        Cal.setLink(ctx, d, newH, Cal.Link(link.id, begin, end, text))
                         calDone("일정 저장 + 구글 캘린더 수정 ✓")
                     }
                     link != null && !want -> withCal {
@@ -627,7 +627,7 @@ class QuickActivity : Activity() {
                     link == null && want -> withCal {
                         val id = Cal.insert(ctx, text, begin, end)
                         if (id != null) {
-                            Cal.setLink(ctx, d, newH, Cal.Link(id, begin, end))
+                            Cal.setLink(ctx, d, newH, Cal.Link(id, begin, end, text))
                             calDone("일정 저장 + 구글 캘린더 추가 ✓")
                         } else calDone("구글 캘린더 추가 실패 (캘린더 계정 확인)")
                     }

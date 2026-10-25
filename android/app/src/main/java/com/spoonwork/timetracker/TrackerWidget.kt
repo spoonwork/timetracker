@@ -127,6 +127,9 @@ class TrackerWidget : AppWidgetProvider() {
                 }
                 Data.saveCache(ctx, j)
                 Data.prefs(ctx).edit().remove("error").apply()
+                try { GcalSync.run(ctx, j, from, to) } catch (e: Throwable) {
+                    Data.prefs(ctx).edit().putString("crash", "gsync: " + (e.message ?: e.javaClass.simpleName)).apply()
+                }
             } catch (e: java.net.UnknownHostException) {
                 Data.prefs(ctx).edit().putString("error", "인터넷 연결 안 됨").apply()
             } catch (e: java.net.SocketTimeoutException) {
