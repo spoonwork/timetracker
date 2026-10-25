@@ -1826,8 +1826,8 @@ function renderTodos() {
   }
   const wtHtml = wt.map((w, i) => `
     <div class="item wt-item ${w.done ? 'done' : ''}">
-      <span class="cb wt-cb ${w.done ? 'checked' : ''}" data-widx="${i}"></span>
       <span>${escapeHtml(w.text)}</span><span class="wt-tag">작업</span>
+      <span class="cb wt-cb ${w.done ? 'checked' : ''}" data-widx="${i}" style="margin-left:auto;"></span>
     </div>`).join('');
   el.innerHTML = wtHtml + (only ? '' : list.map((p, i) => `
     <div class="item ${p.done ? 'done' : ''}">

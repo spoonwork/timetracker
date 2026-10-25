@@ -31,4 +31,13 @@
         android:ellipsize="end"
         android:textColor="#1F2937"
         android:textSize="14sp" />
+
+    <TextView
+        android:id="@+id/rcheck"
+        android:layout_width="32dp"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:textColor="#E06666"
+        android:textSize="16sp"
+        android:visibility="gone" />
 </LinearLayout>

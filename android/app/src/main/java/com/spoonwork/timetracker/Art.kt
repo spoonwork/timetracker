@@ -325,12 +325,21 @@ object Art {
                 c.drawRoundRect(RectF(pad, y - 9 * u * fs, pad + 2.5f * u, y + 2 * u), u, u, p)
                 x = pad + 6 * u
             }
-            p.color = if (isWt) SHEET_CHECK else if (d) sub else main
-            val box = if (d) "☑ " else "☐ "
-            c.drawText(box, x, y, p)
-            val bw = p.measureText(box)
-            p.color = if (d) sub else main
-            c.drawText(fit(p, t.optString("text"), half - x - bw - 6 * u), x + bw, y, p)
+            val box = if (d) "☑" else "☐"
+            if (isWt) {
+                // 스프레드 것: 글자 먼저, 체크박스는 칸 오른쪽 끝에
+                p.color = SHEET_CHECK
+                val bw = p.measureText(box)
+                val bx = half - 6 * u - bw
+                c.drawText(box, bx, y, p)
+                p.color = if (d) sub else main
+                c.drawText(fit(p, t.optString("text"), bx - x - 4 * u), x, y, p)
+            } else {
+                p.color = if (d) sub else main
+                c.drawText("$box ", x, y, p)
+                val bw = p.measureText("$box ")
+                c.drawText(fit(p, t.optString("text"), half - x - bw - 6 * u), x + bw, y, p)
+            }
             y += lineH
         }
         if (list.isEmpty()) { p.color = sub; c.drawText("없음", pad, y, p) }
