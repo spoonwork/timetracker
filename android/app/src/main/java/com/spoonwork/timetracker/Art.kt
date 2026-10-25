@@ -162,7 +162,7 @@ object Art {
         // 세로로 길면 위에 오늘 날짜 + 일정 + 할 일
         var top = 0f
         if (!gridOnly && H > W * 0.95f) {
-            top = drawHeader(c, p, u, W, minOf(H * 0.30f, 170 * u), todayDs, days, events, cache, main, sub)
+            top = drawHeader(c, p, u, W, minOf(H * 0.30f, 170 * u), todayDs, todayDs, todayDs, days, events, cache, main, sub)
         }
 
         val first = Calendar.getInstance().apply { clear(); set(year, month0, 1) }

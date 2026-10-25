@@ -12,17 +12,21 @@ import org.json.JSONObject
 object GcalSync {
     private const val GUARD_MS = 3 * 60_000L   // 방금 폰에서 고친 건 시트 반영 전일 수 있어서 잠깐 건드리지 않음
 
-    fun run(ctx: android.content.Context, j: JSONObject, from: String, to: String) {
-        if (!Cal.canWrite(ctx)) return
-        val days = j.optJSONObject("days") ?: return
+    /** 결과 한 줄 (↻ 눌렀을 때 알림용) */
+    fun run(ctx: android.content.Context, j: JSONObject, from: String, to: String): String? {
+        if (!Data.prefs(ctx).getBoolean("gcal", true)) return null
+        if (!Cal.canWrite(ctx)) return "구글 캘린더 쓰기 권한이 없어요 · 앱 열고 ＋일정에서 캘린더 추가를 한 번 해주세요"
+        val days = j.optJSONObject("days") ?: return null
         val now = System.currentTimeMillis()
         val today = Data.trackerDay()
         var changed = 0
 
         // 1) 연결된 일정 확인
-        for ((d, h, l) in Cal.allLinks(ctx)) {
+        for ((d, h, l0) in Cal.allLinks(ctx)) {
             if (d < from || d > to || !days.has(d)) continue
-            if (now - l.at < GUARD_MS) continue
+            if (now - l0.at < GUARD_MS) continue
+            // 예전 버전에서 연결한 건 제목을 안 적어둬서 캘린더에서 직접 읽어옴
+            val l = if (l0.title.isEmpty()) l0.copy(title = Cal.eventTitle(ctx, l0.id) ?: "") else l0
             val text = days.optJSONObject(d)?.optJSONObject("p")?.optString(h.toString(), "")?.trim() ?: ""
             when {
                 text.isEmpty() -> {
@@ -63,5 +67,6 @@ object GcalSync {
             try { Data.sendOps(ctx, clear) } catch (_: Exception) {}
         }
         if (changed > 0) Data.prefs(ctx).edit().putLong("gsync_at", now).apply()
+        return if (changed > 0) "구글 캘린더에 ${changed}개 반영 ✓" else null
     }
 }

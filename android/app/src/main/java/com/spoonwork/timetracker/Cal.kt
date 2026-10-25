@@ -128,6 +128,14 @@ object Cal {
         c.contentResolver.update(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id), v, null, null) > 0
     } catch (e: Exception) { false }
 
+    /** 캘린더에 실제로 적힌 제목 (없거나 못 읽으면 null) */
+    fun eventTitle(c: Context, id: Long): String? = try {
+        c.contentResolver.query(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id),
+            arrayOf(CalendarContract.Events.TITLE), null, null, null)?.use { cur ->
+            if (cur.moveToFirst()) cur.getString(0) else null
+        }
+    } catch (e: Exception) { null }
+
     fun delete(c: Context, id: Long): Boolean = try {
         c.contentResolver.delete(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id), null, null) > 0
     } catch (e: Exception) { false }

@@ -137,8 +137,13 @@ class TrackerWidget : AppWidgetProvider() {
                 }
                 Data.saveCache(ctx, j)
                 Data.prefs(ctx).edit().remove("error").apply()
-                try { GcalSync.run(ctx, j, from, to) } catch (e: Throwable) {
-                    Data.prefs(ctx).edit().putString("crash", "gsync: " + (e.message ?: e.javaClass.simpleName)).apply()
+                val gmsg = try { GcalSync.run(ctx, j, from, to) } catch (e: Throwable) {
+                    "구글 캘린더 반영 실패: " + (e.message ?: e.javaClass.simpleName)
+                }
+                if (gmsg != null && (fresh || !gmsg.startsWith("구글 캘린더 쓰기"))) {
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        Toast.makeText(ctx, gmsg, Toast.LENGTH_LONG).show()
+                    }
                 }
             } catch (e: java.net.UnknownHostException) {
                 Data.prefs(ctx).edit().putString("error", "인터넷 연결 안 됨").apply()
