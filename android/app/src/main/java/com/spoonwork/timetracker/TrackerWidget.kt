@@ -25,14 +25,28 @@ class TrackerWidget : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (intent.action == ACTION_REFRESH) {
-            refresh(context)
-            render(context)
+        when (intent.action) {
+            ACTION_REFRESH -> {
+                refresh(context)
+                render(context)
+            }
+            ACTION_NEXT_VIEW -> {
+                val next = when (Data.view(context)) { "day" -> "week"; "week" -> "month"; else -> "day" }
+                Data.prefs(context).edit().putString("view", next).apply()
+                render(context)
+            }
         }
+    }
+
+    override fun onAppWidgetOptionsChanged(
+        context: Context, manager: AppWidgetManager, id: Int, newOptions: android.os.Bundle
+    ) {
+        render(context)
     }
 
     companion object {
         const val ACTION_REFRESH = "com.spoonwork.timetracker.REFRESH"
+        const val ACTION_NEXT_VIEW = "com.spoonwork.timetracker.NEXT_VIEW"
 
         /** 시트에서 오늘 요약을 받아와 위젯 다시 그림 (네트워크 보장되는 작업으로 실행) */
         fun refresh(context: Context, pending: PendingResult? = null) {
@@ -46,7 +60,12 @@ class TrackerWidget : AppWidgetProvider() {
         fun fetchNow(ctx: Context) {
             try {
                 Data.prefs(ctx).edit().remove("crash_widget").apply()
-                val j = Data.fetchSummary(ctx, Data.trackerDay())
+                val today = Data.trackerDay()
+                val (gs, ge) = Data.monthGrid(today)
+                val week7 = Data.shift(today, 7)
+                val from = minOf(gs, Data.weekStart(today))
+                val to = maxOf(ge, week7)
+                val j = Data.fetchSummary(ctx, today, from, to)
                 Data.saveCache(ctx, j)
                 Data.prefs(ctx).edit().remove("error").apply()
             } catch (e: java.net.UnknownHostException) {
@@ -81,7 +100,22 @@ class TrackerWidget : AppWidgetProvider() {
             val loadingAt = prefs.getLong("loading_at", 0L)
             val loading = loadingAt > 0 && System.currentTimeMillis() - loadingAt < 60_000
 
+            val view = Data.view(context)
             val stats = when {
+                cache != null && view == "month" -> {
+                    val days = cache.optJSONObject("days")
+                    var sum = 0
+                    val prefix = today.substring(0, 7)
+                    days?.keys()?.forEach { k -> if (k.startsWith(prefix)) sum += days.optJSONObject(k)?.optInt("w") ?: 0 }
+                    "이번 달 작업 ${Data.hm(sum / 60)}" + (if (error != null) "  ⚠" else "")
+                }
+                cache != null && view == "week" -> {
+                    val days = cache.optJSONObject("days")
+                    val ws = Data.weekStart(today)
+                    var sum = 0
+                    for (i in 0..6) sum += days?.optJSONObject(Data.shift(ws, i))?.optInt("w") ?: 0
+                    "이번 주 작업 ${Data.hm(sum / 60)}" + (if (error != null) "  ⚠" else "")
+                }
                 cache != null -> {
                     val work = cache.optInt("workSec") / 60
                     val sleep = cache.optInt("sleepMin")
@@ -109,7 +143,13 @@ class TrackerWidget : AppWidgetProvider() {
                     rv.setInt(chip, "setBackgroundResource", if (dark) R.drawable.chip_bg_dark else R.drawable.chip_bg)
                     rv.setTextColor(chip, if (dark) Color.WHITE else Color.parseColor("#374151"))
                 }
-                rv.setTextViewText(R.id.title, Data.prettyDay(today).replace("월 ", "/").replace("일 ", " "))
+                val tc = Data.toCal(today)
+                val title = when (view) {
+                    "month" -> "${tc.get(java.util.Calendar.MONTH) + 1}월"
+                    "week" -> "${tc.get(java.util.Calendar.MONTH) + 1}월 주간"
+                    else -> Data.prettyDay(today).replace("월 ", "/").replace("일 ", " ")
+                }
+                rv.setTextViewText(R.id.title, "$title ▾")
                 rv.setTextViewText(R.id.stats, if (loading && cache == null) "불러오는 중…" else stats)
                 rv.setTextViewText(R.id.btn_refresh, if (loading) "⋯" else "↻")
                 rv.setImageViewBitmap(R.id.strip, strip)
@@ -119,7 +159,47 @@ class TrackerWidget : AppWidgetProvider() {
                 rv.setOnClickPendingIntent(R.id.btn_plan, quick(context, "plan", 3))
                 rv.setOnClickPendingIntent(R.id.btn_todo, quick(context, "todo", 4))
                 rv.setOnClickPendingIntent(R.id.strip, quick(context, "block", 5))
-                rv.setOnClickPendingIntent(R.id.title, launch(context))
+                rv.setOnClickPendingIntent(
+                    R.id.title,
+                    PendingIntent.getBroadcast(
+                        context, 1, Intent(context, TrackerWidget::class.java).setAction(ACTION_NEXT_VIEW),
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                    )
+                )
+
+                if (view == "day") {
+                    rv.setViewVisibility(R.id.strip, android.view.View.VISIBLE)
+                    rv.setViewVisibility(R.id.list, android.view.View.VISIBLE)
+                    rv.setViewVisibility(R.id.big, android.view.View.GONE)
+                } else {
+                    rv.setViewVisibility(R.id.strip, android.view.View.GONE)
+                    rv.setViewVisibility(R.id.list, android.view.View.GONE)
+                    rv.setViewVisibility(R.id.empty, android.view.View.GONE)
+                    rv.setViewVisibility(R.id.big, android.view.View.VISIBLE)
+                    val opts = mgr.getAppWidgetOptions(id)
+                    val dens = context.resources.displayMetrics.density
+                    val wDp = maxOf(200, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 300)) - 28
+                    val hDp = maxOf(160, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 340)) - 110
+                    val scale = minOf(dens, 1000f / wDp)
+                    val bw = (wDp * scale).toInt()
+                    val bh = (maxOf(120, hDp) * scale).toInt()
+                    val days = cache?.optJSONObject("days")
+                    val bmp = if (view == "month") {
+                        val (gs, ge) = Data.monthGrid(today)
+                        Art.month(tc.get(java.util.Calendar.YEAR), tc.get(java.util.Calendar.MONTH), Data.fmt(java.util.Calendar.getInstance()),
+                            days, Cal.events(context, gs, ge), dark, bw, bh)
+                    } else {
+                        val ws = Data.weekStart(today)
+                        Art.week(ws, Data.fmt(java.util.Calendar.getInstance()), days,
+                            Cal.events(context, ws, Data.shift(ws, 6)), dark, bw, bh)
+                    }
+                    rv.setImageViewBitmap(R.id.big, bmp)
+                    rv.setOnClickPendingIntent(R.id.big, PendingIntent.getActivity(
+                        context, 30, Intent(context, ActionActivity::class.java).putExtra("type", "calendar")
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                    ))
+                }
 
                 val refreshIntent = Intent(context, TrackerWidget::class.java).setAction(ACTION_REFRESH)
                 rv.setOnClickPendingIntent(
@@ -134,7 +214,7 @@ class TrackerWidget : AppWidgetProvider() {
                     .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
                 svc.data = Uri.parse(svc.toUri(Intent.URI_INTENT_SCHEME))
                 rv.setRemoteAdapter(R.id.list, svc)
-                rv.setEmptyView(R.id.list, R.id.empty)
+                if (view == "day") rv.setEmptyView(R.id.list, R.id.empty)
 
                 val template = PendingIntent.getActivity(
                     context, 10, Intent(context, ActionActivity::class.java),

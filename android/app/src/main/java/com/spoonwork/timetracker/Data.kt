@@ -51,6 +51,22 @@ object Data {
     fun bgAlpha(c: Context): Int = prefs(c).getInt("bg_alpha", 95)
     fun dark(c: Context): Boolean = prefs(c).getBoolean("dark", false)
 
+    /** 위젯 보기: day / week / month */
+    fun view(c: Context): String = prefs(c).getString("view", "day") ?: "day"
+
+    /** 이번 달 달력 첫 칸(일요일) ~ 마지막 칸 */
+    fun monthGrid(today: String): Pair<String, String> {
+        val first = toCal(today).apply { set(Calendar.DAY_OF_MONTH, 1) }
+        val offset = first.get(Calendar.DAY_OF_WEEK) - 1
+        val n = first.getActualMaximum(Calendar.DAY_OF_MONTH)
+        val rows = (offset + n + 6) / 7
+        val start = shift(fmt(first), -offset)
+        return start to shift(start, rows * 7 - 1)
+    }
+
+    /** 이번 주 일요일 */
+    fun weekStart(today: String): String = shift(today, -(toCal(today).get(Calendar.DAY_OF_WEEK) - 1))
+
     fun saveCache(c: Context, j: JSONObject) {
         prefs(c).edit().putString("cache", j.toString()).apply()
     }
@@ -137,8 +153,9 @@ object Data {
     }
 
     /** 위젯용 오늘 요약 (Apps Script mode=widget) */
-    fun fetchSummary(c: Context, date: String): JSONObject {
-        val j = JSONObject(httpGet(url(c) + "?mode=widget&date=" + URLEncoder.encode(date, "UTF-8")))
+    fun fetchSummary(c: Context, date: String, from: String = date, to: String = date): JSONObject {
+        val j = JSONObject(httpGet(url(c) + "?mode=widget&date=" + URLEncoder.encode(date, "UTF-8") +
+            "&from=" + from + "&to=" + to))
         if (!j.optBoolean("ok")) throw IOException(j.optString("error", "오류"))
         if (!j.has("blocks")) throw IOException("Apps Script 새 버전 배포 필요")
         return j
@@ -155,6 +172,109 @@ object Data {
         val body = JSONObject().put("key", key).put("value", value).toString()
         val r = JSONObject(httpPost(url(c), body))
         if (!r.optBoolean("ok")) throw IOException(r.optString("error", "저장 실패"))
+    }
+
+    // ---------------- 한 번에 고치기 (Apps Script ops) ----------------
+    fun op(type: String, day: String): JSONObject = JSONObject().put("t", type).put("d", day)
+
+    /** 시트에 바로 적용 (한 번 왕복) */
+    fun sendOps(c: Context, ops: JSONArray) {
+        val r = JSONObject(httpPost(url(c), JSONObject().put("ops", ops).toString()))
+        if (!r.optBoolean("ok")) {
+            val err = r.optString("error", "저장 실패")
+            throw IOException(if (err.contains("No key")) "Apps Script 새 버전 배포 필요" else err)
+        }
+    }
+
+    private fun objOf(app: JSONObject, k: String): JSONObject =
+        app.optJSONObject(k) ?: JSONObject().also { app.put(k, it) }
+
+    /** 같은 고치기를 폰에 있는 데이터에도 바로 적용 (화면 즉시 반영용) */
+    fun applyOps(app: JSONObject, ops: JSONArray) {
+        for (i in 0 until ops.length()) {
+            val o = ops.optJSONObject(i) ?: continue
+            val d = o.optString("d")
+            when (o.optString("t")) {
+                "todo_add" -> {
+                    val td = objOf(app, "todos")
+                    val arr = td.optJSONArray(d) ?: JSONArray().also { td.put(d, it) }
+                    arr.put(JSONObject().put("text", o.optString("text")).put("done", false))
+                }
+                "todo_del", "todo_set" -> {
+                    val td = objOf(app, "todos")
+                    val arr = td.optJSONArray(d) ?: continue
+                    val out = JSONArray()
+                    var hit = false
+                    for (j in 0 until arr.length()) {
+                        val x = arr.optJSONObject(j) ?: continue
+                        if (!hit && x.optString("text") == o.optString("text")) {
+                            hit = true
+                            if (o.optString("t") == "todo_del") continue
+                            x.put("done", o.optBoolean("done"))
+                        }
+                        out.put(x)
+                    }
+                    td.put(d, out)
+                }
+                "plan_set" -> {
+                    val hp = objOf(app, "hourPlans")
+                    val day = hp.optJSONObject(d) ?: JSONObject().also { hp.put(d, it) }
+                    val h = o.optInt("h").toString()
+                    val text = o.optString("text")
+                    if (text.isBlank()) day.remove(h) else day.put(h, text)
+                }
+                "paint" -> paintRange(objOf(app, "manualBlocks"), d, o.optInt("s"), o.optInt("e"), o.optString("cat"))
+                "block_del" -> removeBlock(objOf(app, "manualBlocks"), d, o.optInt("s"), o.optInt("e"))
+            }
+        }
+    }
+
+    /** 칠하기 → ops (새벽 5시 넘어가면 다음 날로 나눔) */
+    fun paintOps(ds: String, sh: Int, sm: Int, eh: Int, em: Int, cat: String): JSONArray {
+        val s = toGrid(sh, sm)
+        val e = toGrid(eh, em)
+        val ops = JSONArray()
+        if (e > s) ops.put(op("paint", ds).put("s", s).put("e", e).put("cat", cat))
+        else {
+            ops.put(op("paint", ds).put("s", s).put("e", DAY_MIN).put("cat", cat))
+            if (e > 0) ops.put(op("paint", shift(ds, 1)).put("s", 0).put("e", e).put("cat", cat))
+        }
+        return ops
+    }
+
+    /** 위젯 캐시(오늘 요약)에 바로 반영 */
+    fun applyOpsToCache(c: Context, ops: JSONArray) {
+        val cache = cache(c) ?: return
+        val day = cache.optString("date")
+        val app = JSONObject()
+        app.put("todos", JSONObject().put(day, cache.optJSONArray("todos") ?: JSONArray()))
+        app.put("hourPlans", JSONObject().put(day, cache.optJSONObject("plans") ?: JSONObject()))
+        app.put("manualBlocks", JSONObject().put(day, cache.optJSONArray("blocks") ?: JSONArray()))
+        // 다른 날짜 일정
+        val days = cache.optJSONObject("days")
+        if (days != null) {
+            val hp = app.getJSONObject("hourPlans")
+            val ks = days.keys()
+            while (ks.hasNext()) {
+                val k = ks.next()
+                if (k == day) continue
+                days.optJSONObject(k)?.optJSONObject("p")?.let { hp.put(k, it) }
+            }
+        }
+        applyOps(app, ops)
+        cache.put("todos", app.getJSONObject("todos").optJSONArray(day) ?: JSONArray())
+        cache.put("plans", app.getJSONObject("hourPlans").optJSONObject(day) ?: JSONObject())
+        cache.put("blocks", app.getJSONObject("manualBlocks").optJSONArray(day) ?: JSONArray())
+        if (days != null) {
+            val hp = app.getJSONObject("hourPlans")
+            val ks = hp.keys()
+            while (ks.hasNext()) {
+                val k = ks.next()
+                val item = days.optJSONObject(k) ?: JSONObject().also { days.put(k, it) }
+                item.put("p", hp.optJSONObject(k) ?: JSONObject())
+            }
+        }
+        saveCache(c, cache)
     }
 
     // ---------------- 칸 칠하기 ----------------

@@ -35,7 +35,6 @@ class QuickActivity : Activity() {
     private var em = 0
     private var planHour = 10
     private var app: JSONObject? = null
-    private var busy = false
 
     private lateinit var tabs: Map<String, TextView>
     private lateinit var dateBtn: TextView
@@ -264,7 +263,7 @@ class QuickActivity : Activity() {
                 sh = st.get(Calendar.HOUR_OF_DAY); sm = st.get(Calendar.MINUTE) / 10 * 10
             }
             "plan" -> {
-                day = Data.trackerDay()
+                day = intent.getStringExtra("day")?.takeIf { it.isNotEmpty() && hour >= 0 } ?: Data.trackerDay()
                 val h = if (hour >= 0) hour else now.get(Calendar.HOUR_OF_DAY)
                 planHour = if (h < Data.DAY_START) h + 24 else h
                 hourSpinner.setSelection(planHour - Data.DAY_START)
@@ -348,12 +347,7 @@ class QuickActivity : Activity() {
                         layoutParams = LinearLayout.LayoutParams(dp(12), dp(12))
                     }
                     listBox.addView(listRow(dot, "${Data.gridText(s)} ~ ${Data.gridText(e)}   $c", null) {
-                        mutate("지웠어요") { x ->
-                            val mb = x.optJSONObject("manualBlocks") ?: JSONObject()
-                            Data.removeBlock(mb, day, s, e)
-                            x.put("manualBlocks", mb)
-                            listOf("manualBlocks")
-                        }
+                        commit("지움", JSONArray().put(Data.op("block_del", day).put("s", s).put("e", e)))
                     })
                 }
             }
@@ -380,21 +374,12 @@ class QuickActivity : Activity() {
                     val t = arr.optJSONObject(i) ?: continue
                     val text = t.optString("text")
                     val lead = label(if (t.optBoolean("done")) "☑" else "☐", 16f, textMain)
-                    listBox.addView(listRow(lead, text, null) {
-                        mutate("지웠어요") { x ->
-                            val todos = x.optJSONObject("todos") ?: JSONObject()
-                            val src = todos.optJSONArray(day) ?: JSONArray()
-                            val out = JSONArray()
-                            var removed = false
-                            for (j in 0 until src.length()) {
-                                val o = src.optJSONObject(j) ?: continue
-                                if (!removed && o.optString("text") == text) { removed = true; continue }
-                                out.put(o)
-                            }
-                            todos.put(day, out)
-                            x.put("todos", todos)
-                            listOf("todos")
-                        }
+                    val done = t.optBoolean("done")
+                    listBox.addView(listRow(lead, text, {
+                        commit(if (done) "체크 해제" else "체크",
+                            JSONArray().put(Data.op("todo_set", day).put("text", text).put("done", !done)))
+                    }) {
+                        commit("지움", JSONArray().put(Data.op("todo_del", day).put("text", text)))
                     })
                 }
             }
@@ -418,29 +403,21 @@ class QuickActivity : Activity() {
         }.start()
     }
 
-    /** 최신 데이터를 받아 고친 뒤 바뀐 항목만 저장 */
-    private fun mutate(done: String, change: (JSONObject) -> List<String>) {
-        if (busy) return
-        busy = true
-        status.text = "저장 중…"
+    /** 화면·위젯에 바로 반영하고, 시트 저장은 뒤에서 (한 번 왕복) */
+    private fun commit(done: String, ops: JSONArray) {
         val ctx = applicationContext
+        app?.let { Data.applyOps(it, ops) }
+        Data.applyOpsToCache(ctx, ops)
+        TrackerWidget.render(ctx)
+        status.text = "$done ✓"
+        refreshUi()
         Thread {
             try {
-                val fresh = Data.fetchAppData(ctx)
-                val keys = change(fresh)
-                keys.forEach { k -> Data.saveKey(ctx, k, fresh.opt(k) ?: JSONObject()) }
-                runOnUiThread {
-                    app = fresh
-                    busy = false
-                    status.text = "$done ✓"
-                    refreshUi()
-                }
+                Data.sendOps(ctx, ops)
                 TrackerWidget.refresh(ctx)
             } catch (e: Exception) {
-                runOnUiThread {
-                    busy = false
-                    status.text = "저장 실패: ${e.message}"
-                }
+                runOnUiThread { status.text = "시트 저장 실패: ${e.message}" }
+                TrackerWidget.refresh(ctx)
             }
         }.start()
     }
@@ -448,48 +425,24 @@ class QuickActivity : Activity() {
     private fun save() {
         when (mode) {
             "sleep", "block" -> {
-                val c = cat
-                val d = day
-                val (a, b, x, y) = listOf(sh, sm, eh, em)
                 val p = Data.prefs(this).edit()
                 if (mode == "sleep") {
-                    p.putInt("sleep_sh", a).putInt("sleep_sm", b).putInt("sleep_eh", x).putInt("sleep_em", y)
-                } else p.putString("last_cat", c)
+                    p.putInt("sleep_sh", sh).putInt("sleep_sm", sm).putInt("sleep_eh", eh).putInt("sleep_em", em)
+                } else p.putString("last_cat", cat)
                 p.apply()
-                val msg = String.format(Locale.US, "%s %02d:%02d~%02d:%02d 저장했어요", c, a, b, x, y)
-                mutate(msg) { fresh ->
-                    val mb = fresh.optJSONObject("manualBlocks") ?: JSONObject()
-                    Data.paintTimes(mb, d, a, b, x, y, c)
-                    fresh.put("manualBlocks", mb)
-                    listOf("manualBlocks")
-                }
+                val msg = String.format(Locale.US, "%s %02d:%02d~%02d:%02d 저장", cat, sh, sm, eh, em)
+                commit(msg, Data.paintOps(day, sh, sm, eh, em, cat))
             }
             "plan" -> {
-                val d = day
-                val h = planHour
                 val text = planEdit.text.toString()
-                mutate(if (text.isBlank()) "일정 지웠어요" else "일정 저장했어요") { fresh ->
-                    val hp = fresh.optJSONObject("hourPlans") ?: JSONObject()
-                    val dayObj = hp.optJSONObject(d) ?: JSONObject()
-                    if (text.isBlank()) dayObj.remove(h.toString()) else dayObj.put(h.toString(), text)
-                    hp.put(d, dayObj)
-                    fresh.put("hourPlans", hp)
-                    listOf("hourPlans")
-                }
+                val ops = JSONArray().put(Data.op("plan_set", day).put("h", planHour).put("text", text))
+                commit(if (text.isBlank()) "일정 지움" else "일정 저장", ops)
             }
             "todo" -> {
                 val text = todoEdit.text.toString().trim()
                 if (text.isEmpty()) return
-                val d = day
                 todoEdit.setText("")
-                mutate("할 일 추가했어요") { fresh ->
-                    val todos = fresh.optJSONObject("todos") ?: JSONObject()
-                    val arr = todos.optJSONArray(d) ?: JSONArray()
-                    arr.put(JSONObject().put("text", text).put("done", false))
-                    todos.put(d, arr)
-                    fresh.put("todos", todos)
-                    listOf("todos")
-                }
+                commit("할 일 추가", JSONArray().put(Data.op("todo_add", day).put("text", text)))
             }
         }
     }

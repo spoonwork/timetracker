@@ -80,6 +80,15 @@
         android:divider="@null"
         android:dividerHeight="0dp" />
 
+    <ImageView
+        android:id="@+id/big"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="6dp"
+        android:layout_weight="1"
+        android:scaleType="fitCenter"
+        android:visibility="gone" />
+
     <TextView
         android:id="@+id/empty"
         android:layout_width="match_parent"

@@ -1,25 +1,46 @@
 package com.spoonwork.timetracker
 
 import android.app.Activity
+import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.provider.CalendarContract
 import android.widget.Toast
 import org.json.JSONArray
-import org.json.JSONObject
 
-/** 위젯 목록을 눌렀을 때: 할 일 체크 / 일정 고치기 (화면 없이 바로 처리) */
+/** 위젯 목록을 눌렀을 때: 할 일 체크 / 일정 고치기 / 캘린더 일정 열기 */
 class ActionActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        when (intent.getStringExtra("type")) {
-            "todo" -> toggleTodo(applicationContext, intent.getStringExtra("text") ?: "")
-            "plan" -> startActivity(
-                Intent(this, QuickActivity::class.java)
-                    .putExtra("mode", "plan")
-                    .putExtra("hour", intent.getIntExtra("hour", -1))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            )
+        try {
+            when (intent.getStringExtra("type")) {
+                "todo" -> toggleTodo(applicationContext, intent.getStringExtra("text") ?: "")
+                "plan" -> startActivity(
+                    Intent(this, QuickActivity::class.java)
+                        .putExtra("mode", "plan")
+                        .putExtra("hour", intent.getIntExtra("hour", -1))
+                        .putExtra("day", intent.getStringExtra("day") ?: "")
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                )
+                "gcal" -> {
+                    val id = intent.getLongExtra("id", -1)
+                    val i = Intent(Intent.ACTION_VIEW, ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id))
+                        .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, intent.getLongExtra("begin", 0))
+                        .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, intent.getLongExtra("end", 0))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(i)
+                }
+                "calendar" -> {
+                    val uri = CalendarContract.CONTENT_URI.buildUpon().appendPath("time")
+                    ContentUris.appendId(uri, System.currentTimeMillis())
+                    startActivity(Intent(Intent.ACTION_VIEW, uri.build()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "열 수 없어요: ${e.message}", Toast.LENGTH_SHORT).show()
         }
         finish()
         overridePendingTransition(0, 0)
@@ -29,58 +50,25 @@ class ActionActivity : Activity() {
         fun toggleTodo(ctx: Context, text: String) {
             if (text.isEmpty()) return
             val day = Data.trackerDay()
-            var newDone = true
-
-            // 화면에 먼저 반영
-            Data.cache(ctx)?.let { cache ->
-                val arr = cache.optJSONArray("todos")
-                if (arr != null) {
-                    for (i in 0 until arr.length()) {
-                        val t = arr.optJSONObject(i) ?: continue
-                        if (t.optString("text") == text) {
-                            newDone = !t.optBoolean("done")
-                            t.put("done", newDone)
-                            break
-                        }
-                    }
-                    Data.saveCache(ctx, cache)
-                    TrackerWidget.render(ctx)
+            var done = true
+            Data.cache(ctx)?.optJSONArray("todos")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val t = arr.optJSONObject(i) ?: continue
+                    if (t.optString("text") == text) { done = !t.optBoolean("done"); break }
                 }
             }
-
-            // 시트에 저장 (최신 데이터에 적용)
+            val ops = JSONArray().put(Data.op("todo_set", day).put("text", text).put("done", done))
+            Data.applyOpsToCache(ctx, ops)
+            TrackerWidget.render(ctx)
             Thread {
                 try {
-                    val app = Data.fetchAppData(ctx)
-                    val todos = app.optJSONObject("todos") ?: JSONObject()
-                    val arr = todos.optJSONArray(day) ?: JSONArray()
-                    var planHour: String? = null
-                    for (i in 0 until arr.length()) {
-                        val t = arr.optJSONObject(i) ?: continue
-                        if (t.optString("text") == text) {
-                            t.put("done", newDone)
-                            val pk = t.optString("planKey", "")
-                            if (pk.startsWith("__plan_")) planHour = pk.removePrefix("__plan_")
-                            break
-                        }
-                    }
-                    todos.put(day, arr)
-                    Data.saveKey(ctx, "todos", todos)
-                    // 일정 칸에서 만든 할 일이면 일정 체크도 같이
-                    if (planHour != null) {
-                        val checks = app.optJSONObject("hourChecks") ?: JSONObject()
-                        val dayChecks = checks.optJSONObject(day) ?: JSONObject()
-                        dayChecks.put(planHour, newDone)
-                        checks.put(day, dayChecks)
-                        Data.saveKey(ctx, "hourChecks", checks)
-                    }
-                    TrackerWidget.refresh(ctx)
+                    Data.sendOps(ctx, ops)
                 } catch (e: Exception) {
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    Handler(Looper.getMainLooper()).post {
                         Toast.makeText(ctx, "저장 실패: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
-                    TrackerWidget.refresh(ctx)
                 }
+                TrackerWidget.refresh(ctx)
             }.start()
         }
     }

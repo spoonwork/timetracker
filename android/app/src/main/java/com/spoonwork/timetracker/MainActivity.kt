@@ -45,6 +45,12 @@ class MainActivity : Activity() {
         setOnClickListener { onClick() }
     }
 
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        TrackerWidget.render(applicationContext)
+        recreate()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val p = Data.prefs(this)
@@ -90,6 +96,21 @@ class MainActivity : Activity() {
                 TrackerWidget.render(applicationContext)
             }
         })
+        root.addView(gap(8))
+
+        root.addView(Switch(this).apply {
+            text = "구글 캘린더 일정 같이 보기"
+            textSize = 15f
+            isChecked = Cal.enabled(this@MainActivity)
+            setOnCheckedChangeListener { _, on ->
+                p.edit().putBoolean("gcal", on).apply()
+                if (on && !Cal.permitted(this@MainActivity)) {
+                    requestPermissions(arrayOf(android.Manifest.permission.READ_CALENDAR), 7)
+                }
+                TrackerWidget.render(applicationContext)
+            }
+        })
+        root.addView(text("위젯 위쪽 날짜를 누르면 데일리 → 위클리 → 먼슬리로 바뀌어요", 12f, Color.parseColor("#9CA3AF")))
         root.addView(gap(16))
 
         root.addView(button("위젯 새로고침", primary = true) { TrackerWidget.refresh(applicationContext) })
