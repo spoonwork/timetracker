@@ -1973,7 +1973,7 @@ function renderStats() {
   } else setSub('s-sleep-sub', '');
 }
 
-// 같은 색으로 이어진 칸 덩어리의 바깥 모서리만 둥글게
+// 같은 색 덩어리가 표 양끝에 닿는 모서리만 둥글게
 function roundBlocks(grid) {
   const rows = [];
   grid.childNodes.forEach(n => {
@@ -2000,7 +2000,9 @@ function roundBlocks(grid) {
       const rr = rt && me.R !== 'transparent' && rt.L === me.R;
       const u = me.solid && up && up.solid && up.L === me.L;
       const d = me.solid && dn && dn.solid && dn.L === me.L;
-      c.style.borderRadius = [(!u && !l) ? R : 0, (!u && !rr) ? R : 0, (!d && !rr) ? R : 0, (!d && !l) ? R : 0].join(' ');
+      // 표 양끝(맨 왼쪽·맨 오른쪽 칸)에서만 둥글게, 중간 전환은 각지게
+      const first = i === 0, last = i === cells.length - 1;
+      c.style.borderRadius = [(first && !u) ? R : 0, (last && !u) ? R : 0, (last && !d) ? R : 0, (first && !d) ? R : 0].join(' ');
     });
   });
 }
