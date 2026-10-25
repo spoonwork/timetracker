@@ -19,38 +19,45 @@ import java.util.Calendar
 class TrackerWidget : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
+        refresh(context)
         render(context)
-        refresh(context, goAsync())
     }
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action == ACTION_REFRESH) {
-            Data.prefs(context).edit().putBoolean("loading", true).apply()
+            refresh(context)
             render(context)
-            refresh(context, goAsync())
         }
     }
 
     companion object {
         const val ACTION_REFRESH = "com.spoonwork.timetracker.REFRESH"
 
-        /** 시트에서 오늘 요약을 받아와 위젯 다시 그림 */
+        /** 시트에서 오늘 요약을 받아와 위젯 다시 그림 (네트워크 보장되는 작업으로 실행) */
         fun refresh(context: Context, pending: PendingResult? = null) {
             val ctx = context.applicationContext
-            Thread {
-                try {
-                    val j = Data.fetchSummary(ctx, Data.trackerDay())
-                    Data.saveCache(ctx, j)
-                    Data.prefs(ctx).edit().remove("error").apply()
-                } catch (e: Exception) {
-                    Data.prefs(ctx).edit().putString("error", e.message ?: "연결 실패").apply()
-                } finally {
-                    Data.prefs(ctx).edit().putBoolean("loading", false).apply()
-                    render(ctx)
-                    pending?.finish()
-                }
-            }.start()
+            Data.prefs(ctx).edit().putLong("loading_at", System.currentTimeMillis()).apply()
+            RefreshJob.schedule(ctx)
+            pending?.finish()
+        }
+
+        /** 실제로 받아오기 (RefreshJob 안에서 호출) */
+        fun fetchNow(ctx: Context) {
+            try {
+                val j = Data.fetchSummary(ctx, Data.trackerDay())
+                Data.saveCache(ctx, j)
+                Data.prefs(ctx).edit().remove("error").apply()
+            } catch (e: java.net.UnknownHostException) {
+                Data.prefs(ctx).edit().putString("error", "인터넷 연결 안 됨").apply()
+            } catch (e: java.net.SocketTimeoutException) {
+                Data.prefs(ctx).edit().putString("error", "응답 늦음 · ↻ 다시").apply()
+            } catch (e: Exception) {
+                Data.prefs(ctx).edit().putString("error", e.message ?: "연결 실패").apply()
+            } finally {
+                Data.prefs(ctx).edit().putLong("loading_at", 0L).apply()
+                render(ctx)
+            }
         }
 
         fun render(context: Context) {
@@ -62,7 +69,8 @@ class TrackerWidget : AppWidgetProvider() {
             val cache = Data.cache(context)?.takeIf { it.optString("date") == today }
             val prefs = Data.prefs(context)
             val error = prefs.getString("error", null)
-            val loading = prefs.getBoolean("loading", false)
+            val loadingAt = prefs.getLong("loading_at", 0L)
+            val loading = loadingAt > 0 && System.currentTimeMillis() - loadingAt < 60_000
 
             val stats = when {
                 cache != null -> {
@@ -93,7 +101,8 @@ class TrackerWidget : AppWidgetProvider() {
                     rv.setTextColor(chip, if (dark) Color.WHITE else Color.parseColor("#374151"))
                 }
                 rv.setTextViewText(R.id.title, Data.prettyDay(today).replace("월 ", "/").replace("일 ", " "))
-                rv.setTextViewText(R.id.stats, if (loading) "새로고침 중…" else stats)
+                rv.setTextViewText(R.id.stats, if (loading && cache == null) "불러오는 중…" else stats)
+                rv.setTextViewText(R.id.btn_refresh, if (loading) "⋯" else "↻")
                 rv.setImageViewBitmap(R.id.strip, strip)
 
                 rv.setOnClickPendingIntent(R.id.btn_sleep, quick(context, "sleep", 1))

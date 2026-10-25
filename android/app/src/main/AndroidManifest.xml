@@ -46,6 +46,11 @@
         </receiver>
 
         <service
+            android:name=".RefreshJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <service
             android:name=".WidgetListService"
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
