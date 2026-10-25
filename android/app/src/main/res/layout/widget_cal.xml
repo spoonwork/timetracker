@@ -152,7 +152,11 @@
                         <TextView android:id="@+id/hlb0" android:layout_width="0dp" android:layout_height="match_parent" />
                         <TextView android:id="@+id/hlc0" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
                     </LinearLayout>
-                    <TextView android:id="@+id/hr0" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                    <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="horizontal">
+                        <TextView android:id="@+id/hr0" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
+                        <TextView android:id="@+id/hrp0" android:layout_width="0dp" android:layout_height="match_parent" />
+                        <TextView android:id="@+id/hrn0" android:layout_width="0dp" android:layout_height="match_parent" />
+                    </LinearLayout>
                 </LinearLayout>
                 <LinearLayout android:id="@+id/hrow1" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal">
                     <LinearLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:orientation="horizontal">

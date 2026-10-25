@@ -48,6 +48,15 @@ class TrackerWidget : AppWidgetProvider() {
                 pr.edit().putBoolean("cal_wt", !pr.getBoolean("cal_wt", true)).apply()
                 render(context)
             }
+            ACTION_HSHIFT -> {
+                // 먼슬리 머리말: 할 일 / 일정 날짜 따로 넘기기 (delta 0 = 오늘로)
+                val wid = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
+                val key = (if (intent.getStringExtra("which") == "e") "hev_" else "htd_") + wid
+                val delta = intent.getIntExtra("delta", 0)
+                val pr = Data.prefs(context)
+                pr.edit().putInt(key, if (delta == 0) 0 else pr.getInt(key, 0) + delta).apply()
+                render(context)
+            }
             ACTION_PICK -> {
                 // 달력에서 날짜 누름 → 이 위젯을 그 날 데일리로
                 val wid = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
@@ -84,6 +93,7 @@ class TrackerWidget : AppWidgetProvider() {
         const val ACTION_SHIFT = "com.spoonwork.timetracker.SHIFT"
         const val ACTION_PICK = "com.spoonwork.timetracker.PICK"
         const val ACTION_TOGGLE_WT = "com.spoonwork.timetracker.TOGGLE_WT"
+        const val ACTION_HSHIFT = "com.spoonwork.timetracker.HSHIFT"
 
         /** 시트에서 오늘 요약을 받아와 위젯 다시 그림 (네트워크 보장되는 작업으로 실행) */
         fun refresh(context: Context, pending: PendingResult? = null) {
@@ -331,7 +341,10 @@ class TrackerWidget : AppWidgetProvider() {
             var headDp = 0f
             val maxH = maxOf(160, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 340))
             if (isMonth && maxH > 330) {
-                val hb = Art.header(today, days, Cal.events(context, today, today), cache, light, bw)
+                val prH = Data.prefs(context)
+                val todoDay = Data.shift(today, prH.getInt("htd_$id", 0))
+                val evDay = Data.shift(today, prH.getInt("hev_$id", 0))
+                val hb = Art.header(todoDay, evDay, today, days, Cal.events(context, evDay, evDay), cache, light, bw)
                 rv.setImageViewBitmap(R.id.head_img, hb)
                 rv.setViewVisibility(R.id.head_box, android.view.View.VISIBLE)
                 headDp = hb.height / scale
@@ -340,6 +353,25 @@ class TrackerWidget : AppWidgetProvider() {
                 val res = context.resources
                 for (r in 0..6) rv.setViewVisibility(res.getIdentifier("hrow$r", "id", pkg),
                     if (r <= Art.lastRows) android.view.View.VISIBLE else android.view.View.GONE)
+                // 첫 줄: [제목 → 오늘로][‹][›]  (할 일 / 일정 각각)
+                fun hs(which: String, delta: Int, rc: Int) = PendingIntent.getBroadcast(context, 7300 + (id % 1000) * 8 + rc,
+                    Intent(context, TrackerWidget::class.java).setAction(ACTION_HSHIFT)
+                        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).putExtra("which", which).putExtra("delta", delta),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+                if (android.os.Build.VERSION.SDK_INT >= 31) {
+                    val toDp = 1f / scale
+                    val dip = android.util.TypedValue.COMPLEX_UNIT_DIP
+                    rv.setViewLayoutWidth(R.id.hla0, Art.arrowTodoX * toDp, dip)
+                    rv.setViewLayoutWidth(R.id.hlb0, Art.arrowW * toDp, dip)
+                    rv.setViewLayoutWidth(R.id.hrp0, Art.arrowW * toDp, dip)
+                    rv.setViewLayoutWidth(R.id.hrn0, (bw - Art.arrowEvX - Art.arrowW) * toDp, dip)
+                }
+                rv.setOnClickPendingIntent(R.id.hla0, hs("t", 0, 0))
+                rv.setOnClickPendingIntent(R.id.hlb0, hs("t", -1, 1))
+                rv.setOnClickPendingIntent(R.id.hlc0, hs("t", 1, 2))
+                rv.setOnClickPendingIntent(R.id.hr0, hs("e", 0, 3))
+                rv.setOnClickPendingIntent(R.id.hrp0, hs("e", -1, 4))
+                rv.setOnClickPendingIntent(R.id.hrn0, hs("e", 1, 5))
                 for (r in 1..6) {
                     val la = res.getIdentifier("hla$r", "id", pkg)
                     val lb = res.getIdentifier("hlb$r", "id", pkg)
@@ -351,13 +383,13 @@ class TrackerWidget : AppWidgetProvider() {
                         val i = Intent(context, ActionActivity::class.java)
                         val wt = td.optBoolean("_wt")
                         if (wt) i.putExtra("type", "wt").putExtra("text", td.optString("text"))
-                            .putExtra("day", today).putExtra("done", !td.optBoolean("done"))
-                        else i.putExtra("type", "todo").putExtra("text", td.optString("text")).putExtra("day", today)
+                            .putExtra("day", todoDay).putExtra("done", !td.optBoolean("done"))
+                        else i.putExtra("type", "todo").putExtra("text", td.optString("text")).putExtra("day", todoDay)
                         val toggle = PendingIntent.getActivity(context, 7000 + (id % 1000) * 16 + r, i,
                             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
                         val daily = PendingIntent.getBroadcast(context, 7200 + (id % 1000) * 16 + r,
                             Intent(context, TrackerWidget::class.java).setAction(ACTION_PICK)
-                                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).putExtra("day", today),
+                                .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).putExtra("day", todoDay),
                             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
                         val box = Art.lastBoxX[r - 1]
                         if (wt && box != null && android.os.Build.VERSION.SDK_INT >= 31) {
@@ -383,7 +415,7 @@ class TrackerWidget : AppWidgetProvider() {
                         val i = Intent(context, ActionActivity::class.java)
                         if (it.eventId >= 0) i.putExtra("type", "gcal").putExtra("id", it.eventId)
                             .putExtra("begin", it.begin).putExtra("end", it.end2)
-                        else i.putExtra("type", "plan").putExtra("hour", it.hour).putExtra("day", today)
+                        else i.putExtra("type", "plan").putExtra("hour", it.hour).putExtra("day", evDay)
                         rv.setOnClickPendingIntent(rr, PendingIntent.getActivity(context, 7100 + (id % 1000) * 16 + r, i,
                             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
                     }

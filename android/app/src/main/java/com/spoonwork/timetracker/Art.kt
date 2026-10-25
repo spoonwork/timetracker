@@ -292,7 +292,18 @@ object Art {
     }
 
     /** 먼슬리 위쪽 (할 일 / 오늘 일정)만 따로 그린 그림 */
-    fun header(todayDs: String, days: JSONObject?, events: List<Cal.Ev>, cache: JSONObject?,
+    /** 머리말 화살표 자리 (px): 할 일 ‹ 시작, 일정 ‹ 시작, 화살표 하나 너비 */
+    var arrowTodoX = 0f
+    var arrowEvX = 0f
+    var arrowW = 0f
+
+    private val WK = arrayOf("일", "월", "화", "수", "목", "금", "토")
+    private fun shortDay(ds: String): String {
+        val c = Data.toCal(ds)
+        return "${c.get(java.util.Calendar.MONTH) + 1}/${c.get(java.util.Calendar.DAY_OF_MONTH)} ${WK[c.get(java.util.Calendar.DAY_OF_WEEK) - 1]}"
+    }
+
+    fun header(todoDs: String, evDs: String, todayDs: String, days: JSONObject?, events: List<Cal.Ev>, cache: JSONObject?,
                dark: Boolean, W: Int): Bitmap {
         val u = W / 340f
         val maxH = (15 * u * fs * 7 + 2).toInt()
@@ -301,22 +312,23 @@ object Art {
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
         val main = mainOf(dark)
         val sub = if (dark) Color.parseColor("#D1D5DB") else Color.parseColor("#9CA3AF")
-        val used = drawHeader(c, p, u, W, maxH.toFloat(), todayDs, days, events, cache, main, sub)
+        val used = drawHeader(c, p, u, W, maxH.toFloat(), todoDs, evDs, todayDs, days, events, cache, main, sub)
         return Bitmap.createBitmap(bmp, 0, 0, W, minOf(maxH, maxOf(1, used.toInt())))
     }
 
     /** 먼슬리 위쪽: 큰 날짜 + 오늘 일정 + 할 일. 그린 높이를 돌려줌 */
     private fun drawHeader(
-        c: Canvas, p: Paint, u: Float, W: Int, h: Float, todayDs: String, days: JSONObject?,
-        events: List<Cal.Ev>, cache: JSONObject?, main: Int, sub: Int
+        c: Canvas, p: Paint, u: Float, W: Int, h: Float, todoDs: String, evDs: String, todayDs: String,
+        days: JSONObject?, events: List<Cal.Ev>, cache: JSONObject?, main: Int, sub: Int
     ): Float {
         val pad = 8 * u
         val lineH = 15 * u * fs
         val colTop = lineH * 0.78f      // 줄 높이를 똑같이 (위젯에서 줄마다 누를 수 있게)
         // 내용 줄 수만큼만 높이를 씀 (빈 공간 없이)
-        val todayItems = items(days, events, todayDs, todayDs).filter { it.start <= todayDs && it.end >= todayDs && !it.sheet }
-        val todosArr = cache?.optJSONArray("todos")
-        val wtArr = days?.optJSONObject(todayDs)?.optJSONArray("wt")
+        val todayItems = items(days, events, evDs, evDs).filter { it.start <= evDs && it.end >= evDs && !it.sheet }
+        val todosArr = if (todoDs == todayDs) cache?.optJSONArray("todos")
+            else days?.optJSONObject(todoDs)?.optJSONArray("t")
+        val wtArr = days?.optJSONObject(todoDs)?.optJSONArray("wt")
         val list = ((0 until (wtArr?.length() ?: 0)).mapNotNull { wtArr?.optJSONObject(it) }
             .filter { !it.optString("text").startsWith("📅") }.map { JSONObject(it.toString()).put("_wt", true) } +
             (0 until (todosArr?.length() ?: 0)).mapNotNull { todosArr?.optJSONObject(it) })
@@ -328,18 +340,35 @@ object Art {
         lastItems = todayItems.take(maxLines)
         lastRows = maxLines
         val half = W / 2f
+        // 날짜 넘기기 화살표 ‹ › (할 일 / 일정 따로)
+        arrowW = 22 * u
+        arrowTodoX = half - 2 * u - 2 * arrowW
+        arrowEvX = W - pad - 2 * arrowW
+        fun arrows(x0: Float) {
+            p.typeface = Typeface.DEFAULT
+            p.textSize = 13 * u * fs
+            p.color = sub
+            p.textAlign = Paint.Align.CENTER
+            c.drawText("‹", x0 + arrowW * 0.5f, colTop, p)
+            c.drawText("›", x0 + arrowW * 1.5f, colTop, p)
+            p.textAlign = Paint.Align.LEFT
+        }
+        arrows(arrowTodoX)
+        arrows(arrowEvX)
 
         // 왼쪽: 할 일
         p.typeface = Typeface.DEFAULT_BOLD
         p.textSize = 11 * u * fs
         p.color = main
         val done = list.count { it.optBoolean("done") }
-        c.drawText("할 일", pad, colTop, p)
+        val todoTitle = if (todoDs == todayDs) "할 일" else "할 일 · " + shortDay(todoDs)
+        c.drawText(todoTitle, pad, colTop, p)
+        val tw = p.measureText(todoTitle)
         p.typeface = Typeface.DEFAULT
         p.textSize = 8.5f * u * fs
         p.color = if (list.isNotEmpty() && done == list.size) ACCENT else sub
         c.drawText(if (list.isNotEmpty() && done == list.size) "  ✓ 달성!" else "  $done/${list.size}",
-            pad + 26 * u, colTop, p)
+            pad + tw, colTop, p)
         p.textSize = 10 * u * fs
         var y = colTop + lineH
         lastBoxX = mutableMapOf()
@@ -379,7 +408,7 @@ object Art {
         p.typeface = Typeface.DEFAULT_BOLD
         p.textSize = 11 * u * fs
         p.color = main
-        c.drawText("오늘 일정", rx, colTop, p)
+        c.drawText(if (evDs == todayDs) "오늘 일정" else shortDay(evDs) + " 일정", rx, colTop, p)
         p.typeface = Typeface.DEFAULT
         p.textSize = 10 * u * fs
         y = colTop + lineH
