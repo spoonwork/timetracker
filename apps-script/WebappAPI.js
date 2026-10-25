@@ -39,6 +39,9 @@ function doGet(e) {
     const ss = openSS();
 
     // 작업캘린더 구조 확인용 (날짜·색만 반환)
+    if (e && e.parameter && e.parameter.mode === 'workcal_shape') {
+      return makeJsonResponse(workCalShape(e.parameter.gid));
+    }
     if (e && e.parameter && e.parameter.mode === 'workcal_debug') {
       return makeJsonResponse(workCalDebug(e.parameter.gid));
     }
@@ -325,6 +328,31 @@ function buildWidgetSummary(ss, date, fromDs, toDs) {
 // =============== 작업캘린더(스튜디오 시트) 날짜 색 ===============
 const WORKCAL_ID = '__WORKCAL_ID__';
 const DATE_CELL_RE = /^\s*(\d{1,2})\s*[.\/]\s*(\d{1,2})\s*\.?\s*$/;
+
+/** 작업캘린더 구조만 (글 내용 없이): 행 이름표, 날짜행, 내 줄(슾) 칸 모양 */
+function workCalShape(gid) {
+  const ss = SpreadsheetApp.openById(WORKCAL_ID);
+  const sh = ss.getSheets().filter(function (s) { return String(s.getSheetId()) === String(gid); })[0] || ss.getSheets()[0];
+  const nr = Math.min(sh.getLastRow(), 80), nc = Math.min(sh.getLastColumn(), 20);
+  const rng = sh.getRange(1, 1, nr, nc);
+  const disp = rng.getDisplayValues(), vals = rng.getValues();
+  const merges = sh.getRange(1, 1, nr, 2).getMergedRanges().map(function (m) { return m.getA1Notation(); });
+  const rows = [];
+  let label = '';
+  for (let r = 0; r < nr; r++) {
+    const a = String(disp[r][0] || '').trim(), b = String(disp[r][1] || '').trim();
+    if (a) label = a;
+    const isDateRow = vals[r].some(function (v, c) { return v instanceof Date && DATE_CELL_RE.test(disp[r][c]); });
+    if (isDateRow) label = '';
+    const cells = [];
+    for (let c = 2; c < nc; c++) {
+      const v = vals[r][c];
+      cells.push(v === true ? 'T' : v === false ? 'F' : v instanceof Date ? 'D' : (String(disp[r][c]).trim() ? 'x' : '.'));
+    }
+    rows.push({ r: r + 1, a: a ? (a === '슾' ? 'ME' : 'other') : '', b: b ? 'b' : '', me: label === '슾', date: isDateRow, cells: cells.join('') });
+  }
+  return { ok: true, sheet: sh.getName(), merges: merges.slice(0, 40), rows: rows };
+}
 
 function workCalDebug(gid) {
   const ss = SpreadsheetApp.openById(WORKCAL_ID);

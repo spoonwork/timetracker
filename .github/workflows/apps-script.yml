@@ -39,9 +39,12 @@ jobs:
           grep -c "__SHEET_ID__" WebappAPI.js && exit 1 || true
           clasp push -f
           clasp deploy -i AKfycbzKAlhhA02RpnXPVrTLIDrfpQooM2OGlV4jQaNgzrG4tZav9ir84K8nxsr6saQVPT_d -d "auto ${{ github.run_number }}"
+          # (임시) 작업캘린더 모양만 확인 - 글 내용 없음
+          sleep 5
+          curl -sL "https://script.google.com/macros/s/AKfycbzKAlhhA02RpnXPVrTLIDrfpQooM2OGlV4jQaNgzrG4tZav9ir84K8nxsr6saQVPT_d/exec?mode=workcal_shape&gid=1831203006" > /tmp/shape.json || true
 
       - name: Save log
-        if: failure()
+        if: always()
         run: |
           cp /tmp/gs.log /tmp/keep.log 2>/dev/null || echo "no log" > /tmp/keep.log
           sed -i -E 's/(ya29|1\/\/)[A-Za-z0-9._-]+/[hidden]/g' /tmp/keep.log
@@ -50,6 +53,7 @@ jobs:
           git checkout --orphan gs-log
           git rm -rf --cached . > /dev/null
           cp /tmp/keep.log gs.log
-          git add gs.log
+          cp /tmp/shape.json shape.json 2>/dev/null || true
+          git add gs.log shape.json 2>/dev/null || git add gs.log
           git commit -m "gs log ${{ github.run_number }}"
           git push -f origin gs-log
