@@ -74,6 +74,12 @@ object Data {
         return start to shift(start, rows * 7 - 1)
     }
 
+    /** off 달 뒤(앞)의 달력 첫 칸 ~ 마지막 칸 */
+    fun monthGridOffset(today: String, off: Int): Pair<String, String> {
+        val first = toCal(today).apply { set(Calendar.DAY_OF_MONTH, 1); add(Calendar.MONTH, off) }
+        return monthGrid(fmt(first))
+    }
+
     /** 이번 주 일요일 */
     fun weekStart(today: String): String = shift(today, -(toCal(today).get(Calendar.DAY_OF_WEEK) - 1))
 

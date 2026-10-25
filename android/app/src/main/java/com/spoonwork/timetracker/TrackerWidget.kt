@@ -30,10 +30,20 @@ class TrackerWidget : AppWidgetProvider() {
                 refresh(context)
                 render(context)
             }
+            ACTION_SHIFT -> {
+                val wid = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
+                val delta = intent.getIntExtra("delta", 0)
+                val key = if (Data.viewFor(context, wid) == "week") "woff_$wid" else "moff_$wid"
+                val pr = Data.prefs(context)
+                pr.edit().putInt(key, pr.getInt(key, 0) + delta).apply()
+                render(context)
+                refresh(context)       // 그 달 기록 받아오기
+            }
             ACTION_NEXT_VIEW -> {
                 val wid = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
                 val next = when (Data.viewFor(context, wid)) { "day" -> "week"; "week" -> "month"; else -> "day" }
-                Data.prefs(context).edit().putString("view_$wid", next).apply()
+                Data.prefs(context).edit().putString("view_$wid", next)
+                    .putInt("moff_$wid", 0).putInt("woff_$wid", 0).apply()
                 render(context)
             }
         }
@@ -48,6 +58,7 @@ class TrackerWidget : AppWidgetProvider() {
     companion object {
         const val ACTION_REFRESH = "com.spoonwork.timetracker.REFRESH"
         const val ACTION_NEXT_VIEW = "com.spoonwork.timetracker.NEXT_VIEW"
+        const val ACTION_SHIFT = "com.spoonwork.timetracker.SHIFT"
 
         /** 시트에서 오늘 요약을 받아와 위젯 다시 그림 (네트워크 보장되는 작업으로 실행) */
         fun refresh(context: Context, pending: PendingResult? = null) {
@@ -64,8 +75,23 @@ class TrackerWidget : AppWidgetProvider() {
                 val today = Data.trackerDay()
                 val (gs, ge) = Data.monthGrid(today)
                 val week7 = Data.shift(today, 7)
-                val from = minOf(gs, Data.weekStart(today))
-                val to = maxOf(ge, week7)
+                var from = minOf(gs, Data.weekStart(today))
+                var to = maxOf(ge, week7)
+                // 위젯에서 다른 달/주를 보고 있으면 그 기간도 같이
+                val pr0 = Data.prefs(ctx)
+                val mgr0 = AppWidgetManager.getInstance(ctx)
+                for (wid in mgr0.getAppWidgetIds(ComponentName(ctx, TrackerWidget::class.java))) {
+                    val mo = pr0.getInt("moff_$wid", 0)
+                    if (mo != 0) {
+                        val (a, b) = Data.monthGridOffset(today, mo)
+                        from = minOf(from, a); to = maxOf(to, b)
+                    }
+                    val wo = pr0.getInt("woff_$wid", 0)
+                    if (wo != 0) {
+                        val ws = Data.shift(Data.weekStart(today), 7 * wo)
+                        from = minOf(from, ws); to = maxOf(to, Data.shift(ws, 6))
+                    }
+                }
                 val j = Data.fetchSummary(ctx, today, from, to)
                 val pr = Data.prefs(ctx)
                 if (System.currentTimeMillis() - pr.getLong("latest_at", 0L) > 6 * 3600_000L) {
@@ -106,20 +132,22 @@ class TrackerWidget : AppWidgetProvider() {
             val loadingAt = prefs.getLong("loading_at", 0L)
             val loading = loadingAt > 0 && System.currentTimeMillis() - loadingAt < 60_000
 
+            var curOff = 0
             fun statsFor(view: String): String = when {
                 cache != null && view == "month" -> {
                     val days = cache.optJSONObject("days")
                     var sum = 0
-                    val prefix = today.substring(0, 7)
+                    val mc = Data.toCal(today).apply { set(java.util.Calendar.DAY_OF_MONTH, 1); add(java.util.Calendar.MONTH, curOff) }
+                    val prefix = Data.fmt(mc).substring(0, 7)
                     days?.keys()?.forEach { k -> if (k.startsWith(prefix)) sum += days.optJSONObject(k)?.optInt("w") ?: 0 }
-                    "이번 달 작업 ${Data.hm(sum / 60)}" + (if (error != null) "  ⚠" else "")
+                    (if (curOff == 0) "이번 달 작업 " else "작업 ") + Data.hm(sum / 60) + (if (error != null) "  ⚠" else "")
                 }
                 cache != null && view == "week" -> {
                     val days = cache.optJSONObject("days")
-                    val ws = Data.weekStart(today)
+                    val ws = Data.shift(Data.weekStart(today), 7 * curOff)
                     var sum = 0
                     for (i in 0..6) sum += days?.optJSONObject(Data.shift(ws, i))?.optInt("w") ?: 0
-                    "이번 주 작업 ${Data.hm(sum / 60)}" + (if (error != null) "  ⚠" else "")
+                    (if (curOff == 0) "이번 주 작업 " else "작업 ") + Data.hm(sum / 60) + (if (error != null) "  ⚠" else "")
                 }
                 cache != null -> {
                     val work = cache.optInt("workSec") / 60
@@ -140,6 +168,7 @@ class TrackerWidget : AppWidgetProvider() {
 
             for (id in ids) {
                 val view = Data.viewFor(context, id)
+                curOff = if (view == "month") prefs.getInt("moff_$id", 0) else if (view == "week") prefs.getInt("woff_$id", 0) else 0
                 val stats = statsFor(view)
                 val isDay = view == "day"
                 // 달력은 목록이 없는 별도 레이아웃 (목록이 겹쳐 보이지 않게)
@@ -158,8 +187,15 @@ class TrackerWidget : AppWidgetProvider() {
                 }
                 val tc = Data.toCal(today)
                 val title = when (view) {
-                    "month" -> "${tc.get(java.util.Calendar.MONTH) + 1}월"
-                    "week" -> "${tc.get(java.util.Calendar.MONTH) + 1}월 주간"
+                    "month" -> {
+                        val m = Data.toCal(today).apply { set(java.util.Calendar.DAY_OF_MONTH, 1); add(java.util.Calendar.MONTH, prefs.getInt("moff_$id", 0)) }
+                        if (m.get(java.util.Calendar.YEAR) != tc.get(java.util.Calendar.YEAR)) "${m.get(java.util.Calendar.YEAR)}.${m.get(java.util.Calendar.MONTH) + 1}월"
+                        else "${m.get(java.util.Calendar.MONTH) + 1}월"
+                    }
+                    "week" -> {
+                        val ws = Data.toCal(Data.shift(Data.weekStart(today), 7 * prefs.getInt("woff_$id", 0)))
+                        "${ws.get(java.util.Calendar.MONTH) + 1}/${ws.get(java.util.Calendar.DAY_OF_MONTH)}~"
+                    }
                     else -> Data.prettyDay(today).replace("월 ", "/").replace("일 ", " ")
                 }
                 rv.setTextViewText(R.id.title, "$title ▾")
@@ -186,38 +222,7 @@ class TrackerWidget : AppWidgetProvider() {
                 if (isDay) {
                     rv.setViewVisibility(R.id.big, android.view.View.GONE)
                 } else {
-                    val opts = mgr.getAppWidgetOptions(id)
-                    val dens = context.resources.displayMetrics.density
-                    val wDp = maxOf(200, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 300)) - 24
-                    val showClock = view == "month" && Data.prefs(context).getBoolean("clock", true)
-                    rv.setViewVisibility(R.id.clock_box, if (showClock) android.view.View.VISIBLE else android.view.View.GONE)
-                    if (showClock) {
-                        val week = arrayOf("일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일")
-                        val now = java.util.Calendar.getInstance()
-                        rv.setTextViewText(R.id.clock_date, "${now.get(java.util.Calendar.MONTH) + 1}월 ${now.get(java.util.Calendar.DAY_OF_MONTH)}일 " +
-                            week[now.get(java.util.Calendar.DAY_OF_WEEK) - 1] + "  ·  " + Cal.ganji(Data.fmt(now)) + "日")
-                    }
-                    val hDp = maxOf(160, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 340)) - 60 -
-                        (if (showClock) 150 else 0)
-                    val scale = minOf(dens, 1000f / wDp)
-                    val bw = (wDp * scale).toInt()
-                    val bh = (maxOf(120, hDp) * scale).toInt()
-                    val days = cache?.optJSONObject("days")
-                    val bmp = if (view == "month") {
-                        val (gs, ge) = Data.monthGrid(today)
-                        Art.month(tc.get(java.util.Calendar.YEAR), tc.get(java.util.Calendar.MONTH), Data.fmt(java.util.Calendar.getInstance()),
-                            days, Cal.events(context, gs, ge), light, bw, bh, cache)
-                    } else {
-                        val ws = Data.weekStart(today)
-                        Art.week(ws, Data.fmt(java.util.Calendar.getInstance()), days,
-                            Cal.events(context, ws, Data.shift(ws, 6)), light, bw, bh, cache?.optJSONObject("dayColors"))
-                    }
-                    rv.setImageViewBitmap(R.id.big, bmp)
-                    rv.setOnClickPendingIntent(R.id.big, PendingIntent.getActivity(
-                        context, 30, Intent(context, ActionActivity::class.java).putExtra("type", "calendar")
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                    ))
+                    renderCal(context, mgr, id, rv, view, today, cache, light)
                 }
 
                 val refreshIntent = Intent(context, TrackerWidget::class.java).setAction(ACTION_REFRESH)
@@ -246,6 +251,93 @@ class TrackerWidget : AppWidgetProvider() {
                 mgr.updateAppWidget(id, rv)
             }
             mgr.notifyAppWidgetViewDataChanged(ids, R.id.list)
+        }
+
+        /** 위클리·먼슬리: 머리말 그림 + 요일 + 칸 그림 + 날짜마다 누르는 칸 */
+        private fun renderCal(
+            context: Context, mgr: AppWidgetManager, id: Int, rv: RemoteViews, view: String,
+            today: String, cache: org.json.JSONObject?, light: Boolean
+        ) {
+            val prefs = Data.prefs(context)
+            val opts = mgr.getAppWidgetOptions(id)
+            val dens = context.resources.displayMetrics.density
+            val wDp = maxOf(200, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 300)) - 24
+            val scale = minOf(dens, 1000f / wDp)
+            val bw = (wDp * scale).toInt()
+            val nowDs = Data.fmt(java.util.Calendar.getInstance())
+            val days = cache?.optJSONObject("days")
+            val isMonth = view == "month"
+            val off = prefs.getInt(if (isMonth) "moff_$id" else "woff_$id", 0)
+
+            // 큰 시계 (이번 달 먼슬리에서만)
+            val showClock = isMonth && off == 0 && prefs.getBoolean("clock", true)
+            rv.setViewVisibility(R.id.clock_box, if (showClock) android.view.View.VISIBLE else android.view.View.GONE)
+            if (showClock) {
+                val week = arrayOf("일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일")
+                val now = java.util.Calendar.getInstance()
+                rv.setTextViewText(R.id.clock_date, "${now.get(java.util.Calendar.MONTH) + 1}월 ${now.get(java.util.Calendar.DAY_OF_MONTH)}일 " +
+                    week[now.get(java.util.Calendar.DAY_OF_WEEK) - 1] + "  ·  " + Cal.ganji(nowDs) + "日")
+            }
+
+            // 할 일 / 오늘 일정 (이번 달 먼슬리에서만)
+            var headDp = 0f
+            val maxH = maxOf(160, opts.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 340))
+            if (isMonth && off == 0 && maxH > 330) {
+                val hb = Art.header(today, days, Cal.events(context, today, today), cache, light, bw)
+                rv.setImageViewBitmap(R.id.head_img, hb)
+                rv.setViewVisibility(R.id.head_img, android.view.View.VISIBLE)
+                headDp = hb.height / scale
+            } else rv.setViewVisibility(R.id.head_img, android.view.View.GONE)
+
+            rv.setViewVisibility(R.id.wk_row, if (isMonth) android.view.View.VISIBLE else android.view.View.GONE)
+            for (i in 0..6) rv.setTextColor(context.resources.getIdentifier("wk$i", "id", context.packageName),
+                when (i) { 0 -> Color.parseColor("#E5484D"); 6 -> Color.parseColor("#3B82F6")
+                    else -> if (light) Color.parseColor("#E5E7EB") else Color.parseColor("#9CA3AF") })
+
+            val gridDp = maxOf(120f, maxH - 56f - (if (showClock) 150f else 0f) - headDp - (if (isMonth) 22f else 0f))
+            val bh = (gridDp * scale).toInt()
+
+            val cellDays: List<String>
+            val bmp: Bitmap
+            if (isMonth) {
+                val m = Data.toCal(today).apply { set(java.util.Calendar.DAY_OF_MONTH, 1); add(java.util.Calendar.MONTH, off) }
+                val (gs, ge) = Data.monthGridOffset(today, off)
+                val n = ((Data.toCal(ge).timeInMillis - Data.toCal(gs).timeInMillis) / 86400000L).toInt() + 1
+                cellDays = (0 until n).map { Data.shift(gs, it) }
+                bmp = Art.month(m.get(java.util.Calendar.YEAR), m.get(java.util.Calendar.MONTH), nowDs,
+                    days, Cal.events(context, gs, ge), light, bw, bh, cache, gridOnly = true)
+            } else {
+                val ws = Data.shift(Data.weekStart(today), 7 * off)
+                cellDays = (0..6).map { Data.shift(ws, it) }
+                bmp = Art.week(ws, nowDs, days, Cal.events(context, ws, Data.shift(ws, 6)), light, bw, bh,
+                    cache?.optJSONObject("dayColors"))
+            }
+            rv.setImageViewBitmap(R.id.big, bmp)
+
+            // 날짜 칸 누르기 → 그 날 일정 입력창
+            val rows = (cellDays.size + 6) / 7
+            for (r in 0..5) rv.setViewVisibility(context.resources.getIdentifier("r$r", "id", context.packageName),
+                if (r < rows) android.view.View.VISIBLE else android.view.View.GONE)
+            for (i in 0 until 42) {
+                val cid = context.resources.getIdentifier("c$i", "id", context.packageName)
+                if (i >= cellDays.size) continue
+                val it = Intent(context, QuickActivity::class.java)
+                    .putExtra("mode", "plan").putExtra("day", cellDays[i]).putExtra("hour", -1)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                rv.setOnClickPendingIntent(cid, PendingIntent.getActivity(context, 3000 + (id % 1000) * 64 + i, it,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+            }
+
+            // ‹ › 넘기기, ＋ 일정 추가
+            for ((vid, delta) in listOf(R.id.btn_prev to -1, R.id.btn_next to 1)) {
+                rv.setTextColor(vid, if (light) Color.WHITE else Color.parseColor("#6B7280"))
+                rv.setOnClickPendingIntent(vid, PendingIntent.getBroadcast(context, 5000 + (id % 1000) * 4 + (delta + 1),
+                    Intent(context, TrackerWidget::class.java).setAction(ACTION_SHIFT)
+                        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id).putExtra("delta", delta),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+            }
+            rv.setTextColor(R.id.btn_add, if (light) Color.WHITE else Color.parseColor("#6B7280"))
+            rv.setOnClickPendingIntent(R.id.btn_add, quick(context, "plan", 6))
         }
 
         private fun quick(context: Context, mode: String, req: Int): PendingIntent {

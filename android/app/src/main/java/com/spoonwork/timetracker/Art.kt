@@ -117,7 +117,7 @@ object Art {
     // ================= 먼슬리 =================
     fun month(
         year: Int, month0: Int, todayDs: String, days: JSONObject?, events: List<Cal.Ev>,
-        dark: Boolean, W: Int, H: Int, cache: JSONObject? = null
+        dark: Boolean, W: Int, H: Int, cache: JSONObject? = null, gridOnly: Boolean = false
     ): Bitmap {
         val bmp = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
@@ -129,7 +129,7 @@ object Art {
 
         // 세로로 길면 위에 오늘 날짜 + 일정 + 할 일
         var top = 0f
-        if (H > W * 0.95f) {
+        if (!gridOnly && H > W * 0.95f) {
             top = drawHeader(c, p, u, W, minOf(H * 0.30f, 170 * u), todayDs, days, events, cache, main, sub)
         }
 
@@ -144,12 +144,12 @@ object Art {
         // 요일
         c.translate(0f, top)
         val Hc = H - top
-        val hh = 18 * u
+        val hh = if (gridOnly) 0f else 18 * u
         p.textSize = 9.5f * u
         p.textAlign = Paint.Align.CENTER
         val cw = W / 7f
         val names = arrayOf("일", "월", "화", "수", "목", "금", "토")
-        for (i in 0..6) {
+        if (!gridOnly) for (i in 0..6) {
             p.color = when (i) { 0 -> RED; 6 -> BLUE; else -> sub }
             c.drawText(names[i], cw * i + cw / 2, hh * 0.7f, p)
         }
@@ -257,6 +257,20 @@ object Art {
             c.drawLine(0f, y, W.toFloat(), y, p)
         }
         return bmp
+    }
+
+    /** 먼슬리 위쪽 (할 일 / 오늘 일정)만 따로 그린 그림 */
+    fun header(todayDs: String, days: JSONObject?, events: List<Cal.Ev>, cache: JSONObject?,
+               dark: Boolean, W: Int): Bitmap {
+        val u = W / 340f
+        val maxH = (120 * u).toInt()
+        val bmp = Bitmap.createBitmap(W, maxH, Bitmap.Config.ARGB_8888)
+        val c = Canvas(bmp)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        val main = if (dark) Color.WHITE else Color.parseColor("#1F2937")
+        val sub = if (dark) Color.parseColor("#D1D5DB") else Color.parseColor("#9CA3AF")
+        val used = drawHeader(c, p, u, W, maxH.toFloat(), todayDs, days, events, cache, main, sub)
+        return Bitmap.createBitmap(bmp, 0, 0, W, minOf(maxH, maxOf(1, used.toInt())))
     }
 
     /** 먼슬리 위쪽: 큰 날짜 + 오늘 일정 + 할 일. 그린 높이를 돌려줌 */

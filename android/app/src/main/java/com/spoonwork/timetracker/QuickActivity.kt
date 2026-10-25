@@ -289,8 +289,9 @@ class QuickActivity : Activity() {
                 sh = st.get(Calendar.HOUR_OF_DAY); sm = st.get(Calendar.MINUTE) / 10 * 10
             }
             "plan" -> {
-                day = intent.getStringExtra("day")?.takeIf { it.isNotEmpty() && hour >= 0 } ?: Data.trackerDay()
-                val h = if (hour >= 0) hour else now.get(Calendar.HOUR_OF_DAY)
+                day = intent.getStringExtra("day")?.takeIf { it.isNotEmpty() } ?: Data.trackerDay()
+                // 다른 날짜를 눌러 열었으면 10시로, 오늘이면 지금 시각으로
+                val h = if (hour >= 0) hour else if (day != Data.trackerDay()) 10 else now.get(Calendar.HOUR_OF_DAY)
                 planHour = if (h < Data.DAY_START) h + 24 else h
                 pm = 0; peH = (planHour + 1) % 24; peM = 0
                 fillPlanText()
