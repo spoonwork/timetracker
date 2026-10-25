@@ -124,6 +124,26 @@ class MainActivity : Activity() {
         })
         root.addView(gap(8))
 
+        // 글자색
+        root.addView(text("글자색", 15f, bold = true))
+        val group = android.widget.RadioGroup(this).apply { orientation = android.widget.RadioGroup.HORIZONTAL }
+        val cur = p.getString("text", "auto")
+        listOf("auto" to "자동", "dark" to "검정", "light" to "흰색").forEachIndexed { i, (key, label) ->
+            group.addView(android.widget.RadioButton(this).apply {
+                id = 900 + i
+                text = label
+                textSize = 15f
+                isChecked = key == cur
+                setOnClickListener {
+                    p.edit().putString("text", key).apply()
+                    TrackerWidget.render(applicationContext)
+                }
+            })
+        }
+        root.addView(group)
+        root.addView(text("배경을 연하게 하고 배경화면이 어두우면 '흰색'을 고르세요", 12f, Color.parseColor("#9CA3AF")))
+        root.addView(gap(8))
+
         root.addView(Switch(this).apply {
             text = "구글 캘린더 일정 같이 보기"
             textSize = 15f

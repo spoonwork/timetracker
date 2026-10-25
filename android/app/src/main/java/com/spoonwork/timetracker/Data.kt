@@ -51,6 +51,13 @@ object Data {
     fun bgAlpha(c: Context): Int = prefs(c).getInt("bg_alpha", 95)
     fun dark(c: Context): Boolean = prefs(c).getBoolean("dark", false)
 
+    /** 글자색: auto(배경 따라) / dark(검정) / light(흰색) */
+    fun lightText(c: Context): Boolean = when (prefs(c).getString("text", "auto")) {
+        "light" -> true
+        "dark" -> false
+        else -> dark(c)
+    }
+
     /** 위젯 보기: day / week / month */
     fun view(c: Context): String = prefs(c).getString("view", "day") ?: "day"
 

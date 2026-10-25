@@ -132,9 +132,10 @@ class TrackerWidget : AppWidgetProvider() {
             }
             val hasUpdate = prefs.getInt("latest", -1) > Updater.currentVersion(context)
             val dark = Data.dark(context)
-            val strip = drawStrip(cache?.optJSONArray("blocks"), dark)
-            val mainColor = if (dark) Color.WHITE else Color.parseColor("#1F2937")
-            val subColor = if (dark) Color.parseColor("#D1D5DB") else Color.parseColor("#6B7280")
+            val light = Data.lightText(context)
+            val strip = drawStrip(cache?.optJSONArray("blocks"), light)
+            val mainColor = if (light) Color.WHITE else Color.parseColor("#1F2937")
+            val subColor = if (light) Color.parseColor("#E5E7EB") else Color.parseColor("#6B7280")
             val alpha = Data.bgAlpha(context) * 255 / 100
 
             for (id in ids) {
@@ -146,8 +147,8 @@ class TrackerWidget : AppWidgetProvider() {
                 rv.setTextColor(R.id.btn_refresh, subColor)
                 rv.setTextColor(R.id.empty, subColor)
                 for (chip in intArrayOf(R.id.btn_sleep, R.id.btn_block, R.id.btn_plan, R.id.btn_todo)) {
-                    rv.setInt(chip, "setBackgroundResource", if (dark) R.drawable.chip_bg_dark else R.drawable.chip_bg)
-                    rv.setTextColor(chip, if (dark) Color.WHITE else Color.parseColor("#374151"))
+                    rv.setInt(chip, "setBackgroundResource", if (light) R.drawable.chip_bg_dark else R.drawable.chip_bg)
+                    rv.setTextColor(chip, if (light) Color.WHITE else Color.parseColor("#374151"))
                 }
                 val tc = Data.toCal(today)
                 val title = when (view) {
@@ -194,11 +195,11 @@ class TrackerWidget : AppWidgetProvider() {
                     val bmp = if (view == "month") {
                         val (gs, ge) = Data.monthGrid(today)
                         Art.month(tc.get(java.util.Calendar.YEAR), tc.get(java.util.Calendar.MONTH), Data.fmt(java.util.Calendar.getInstance()),
-                            days, Cal.events(context, gs, ge), dark, bw, bh)
+                            days, Cal.events(context, gs, ge), light, bw, bh)
                     } else {
                         val ws = Data.weekStart(today)
                         Art.week(ws, Data.fmt(java.util.Calendar.getInstance()), days,
-                            Cal.events(context, ws, Data.shift(ws, 6)), dark, bw, bh)
+                            Cal.events(context, ws, Data.shift(ws, 6)), light, bw, bh)
                     }
                     rv.setImageViewBitmap(R.id.big, bmp)
                     rv.setOnClickPendingIntent(R.id.big, PendingIntent.getActivity(
