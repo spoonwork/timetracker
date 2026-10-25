@@ -2943,6 +2943,25 @@ function shortenLabel(app, title) {
   return app.length > 8 ? app.substring(0, 8) : app;
 }
 
+// 겹친 기록은 한 번만 (트래커가 두 개 켜져 있던 날 등) → 하루 합계가 24시간을 넘지 않게
+function dedupeAutoLogs(byDate) {
+  Object.keys(byDate).forEach(d => {
+    const arr = byDate[d].slice().sort((a, b) => a.startMin - b.startMin);
+    let maxEnd = -Infinity;
+    const out = [];
+    arr.forEach(a => {
+      const dur = a.durationSec !== undefined ? a.durationSec / 60 : (a.endMin - a.startMin);
+      const st = Math.max(a.startMin, maxEnd);
+      const en = a.startMin + dur;
+      if (en - st < 1 / 60) return;          // 이미 센 시간
+      out.push({ ...a, startMin: st, durationSec: (en - st) * 60 });
+      maxEnd = Math.max(maxEnd, en);
+    });
+    byDate[d] = out;
+  });
+  return byDate;
+}
+
 function processLogsRows(rows) {
   if (!rows || rows.length < 2) return {};
   const byDate = {};
@@ -3228,7 +3247,7 @@ async function syncFromSheets(manual = false) {
     if (syncBtn) syncBtn.style.opacity = '0.5';
 
     const data = await fetchAllData(manual);
-    state.autoLogs = processLogsRows(data.logs || []);
+    state.autoLogs = dedupeAutoLogs(processLogsRows(data.logs || []));
     // work_type 탭 로드
     if (data.workTypes) {
       data.workTypes.forEach(row => {
