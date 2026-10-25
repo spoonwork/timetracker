@@ -162,7 +162,9 @@ class TrackerWidget : AppWidgetProvider() {
             val dark = Data.dark(context)
             val light = Data.lightText(context)
             val strip = drawStrip(cache?.optJSONArray("blocks"), light)
-            val mainColor = if (light) Color.WHITE else Color.parseColor("#1F2937")
+            Art.textOverride = Data.textColor(context)
+            Art.fs = Data.fontScale(context)
+            val mainColor = Data.textColor(context) ?: if (light) Color.WHITE else Color.parseColor("#1F2937")
             val subColor = if (light) Color.parseColor("#E5E7EB") else Color.parseColor("#6B7280")
             val alpha = Data.bgAlpha(context) * 255 / 100
 
@@ -176,6 +178,8 @@ class TrackerWidget : AppWidgetProvider() {
                 rv.setInt(R.id.bg, "setColorFilter", if (dark) Color.parseColor("#111827") else Color.WHITE)
                 rv.setInt(R.id.bg, "setImageAlpha", alpha)
                 rv.setTextColor(R.id.title, mainColor)
+                rv.setTextViewTextSize(R.id.title, android.util.TypedValue.COMPLEX_UNIT_SP, 16f * Art.fs)
+                rv.setTextViewTextSize(R.id.stats, android.util.TypedValue.COMPLEX_UNIT_SP, 13f * Art.fs)
                 rv.setTextColor(R.id.stats, subColor)
                 rv.setTextColor(R.id.btn_refresh, subColor)
                 if (isDay) {
@@ -272,7 +276,13 @@ class TrackerWidget : AppWidgetProvider() {
             // 큰 시계 (이번 달 먼슬리에서만)
             val showClock = isMonth && prefs.getBoolean("clock", true)
             rv.setViewVisibility(R.id.clock_box, if (showClock) android.view.View.VISIBLE else android.view.View.GONE)
+            val clockSp = Data.clockSize(context)
             if (showClock) {
+                val cc = Data.clockColor(context)
+                for (cid in intArrayOf(R.id.clock_h, R.id.clock_m, R.id.clock_date)) rv.setTextColor(cid, cc)
+                rv.setTextViewTextSize(R.id.clock_h, android.util.TypedValue.COMPLEX_UNIT_SP, clockSp.toFloat())
+                rv.setTextViewTextSize(R.id.clock_m, android.util.TypedValue.COMPLEX_UNIT_SP, clockSp.toFloat())
+                rv.setTextViewTextSize(R.id.clock_date, android.util.TypedValue.COMPLEX_UNIT_SP, 15f * Art.fs)
                 val week = arrayOf("일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일")
                 val now = java.util.Calendar.getInstance()
                 rv.setTextViewText(R.id.clock_date, "${now.get(java.util.Calendar.MONTH) + 1}월 ${now.get(java.util.Calendar.DAY_OF_MONTH)}일 " +
@@ -290,11 +300,15 @@ class TrackerWidget : AppWidgetProvider() {
             } else rv.setViewVisibility(R.id.head_img, android.view.View.GONE)
 
             rv.setViewVisibility(R.id.wk_row, if (isMonth) android.view.View.VISIBLE else android.view.View.GONE)
-            for (i in 0..6) rv.setTextColor(context.resources.getIdentifier("wk$i", "id", context.packageName),
-                when (i) { 0 -> Color.parseColor("#E5484D"); 6 -> Color.parseColor("#3B82F6")
-                    else -> if (light) Color.parseColor("#E5E7EB") else Color.parseColor("#9CA3AF") })
+            for (i in 0..6) {
+                val wid = context.resources.getIdentifier("wk$i", "id", context.packageName)
+                rv.setTextColor(wid, when (i) { 0 -> Color.parseColor("#E5484D"); 6 -> Color.parseColor("#3B82F6")
+                    else -> Data.textColor(context) ?: if (light) Color.parseColor("#E5E7EB") else Color.parseColor("#9CA3AF") })
+                rv.setTextViewTextSize(wid, android.util.TypedValue.COMPLEX_UNIT_SP, 12f * Art.fs)
+            }
 
-            val gridDp = maxOf(120f, maxH - 56f - (if (showClock) 150f else 0f) - headDp - (if (isMonth) 22f else 0f))
+            val clockDp = if (showClock) clockSp * 2 * 1.05f + 22f * Art.fs else 0f
+            val gridDp = maxOf(120f, maxH - 56f - clockDp - headDp - (if (isMonth) 22f else 0f))
             val bh = (gridDp * scale).toInt()
 
             val cellDays: List<String>
@@ -321,9 +335,9 @@ class TrackerWidget : AppWidgetProvider() {
             for (i in 0 until 42) {
                 val cid = context.resources.getIdentifier("c$i", "id", context.packageName)
                 if (i >= cellDays.size) continue
-                val it = Intent(context, QuickActivity::class.java)
-                    .putExtra("mode", "plan").putExtra("day", cellDays[i]).putExtra("hour", -1)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                // 그 날 데일리 트래커 열기
+                val it = Intent(Intent.ACTION_VIEW, Uri.parse("https://spoonwork.github.io/timetracker/?date=" + cellDays[i]))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 rv.setOnClickPendingIntent(cid, PendingIntent.getActivity(context, 3000 + (id % 1000) * 64 + i, it,
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
             }

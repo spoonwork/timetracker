@@ -124,6 +124,65 @@ class MainActivity : Activity() {
         })
         root.addView(gap(8))
 
+        // ---- 꾸미기: 색 고르기 ----
+        val palette = listOf("#A8925A", "#1F2937", "#FFFFFF", "#6B7280", "#E85A5A", "#F59E0B",
+            "#10B981", "#3B82F6", "#8B5CF6", "#EC4899")
+        fun swatches(title: String, key: String, def: Int?, withAuto: Boolean) {
+            root.addView(text(title, 15f, bold = true))
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            val cur = p.getInt(key, def ?: 0)
+            val views = mutableListOf<Pair<View, Int>>()
+            val all = (if (withAuto) listOf(0) else emptyList()) + palette.map { Color.parseColor(it) }
+            fun paint() = views.forEach { (v, col) ->
+                val on = p.getInt(key, def ?: 0) == col
+                v.background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(if (col == 0) Color.parseColor("#F3F4F6") else col)
+                    setStroke(dp(if (on) 3 else 1), if (on) Color.parseColor("#10B981") else Color.parseColor("#D1D5DB"))
+                }
+            }
+            all.forEach { col ->
+                val v = TextView(this).apply {
+                    gravity = Gravity.CENTER
+                    textSize = 10f
+                    text = if (col == 0) "자동" else ""
+                    setOnClickListener {
+                        p.edit().putInt(key, col).apply()
+                        paint()
+                        TrackerWidget.render(applicationContext)
+                    }
+                }
+                views.add(v to col)
+                row.addView(v, LinearLayout.LayoutParams(dp(30), dp(30)).apply { marginEnd = dp(6) })
+            }
+            paint()
+            root.addView(android.widget.HorizontalScrollView(this).apply { addView(row) })
+            root.addView(gap(8))
+        }
+        fun slider(title: String, key: String, def: Int, min: Int, max: Int, unit: String) {
+            val lab = text("$title  ${p.getInt(key, def)}$unit", 15f, bold = true)
+            root.addView(lab)
+            root.addView(SeekBar(this).apply {
+                this.max = max - min
+                progress = p.getInt(key, def) - min
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(s: SeekBar?, v: Int, fromUser: Boolean) {
+                        lab.text = "$title  ${v + min}$unit"
+                        p.edit().putInt(key, v + min).apply()
+                    }
+                    override fun onStartTrackingTouch(s: SeekBar?) {}
+                    override fun onStopTrackingTouch(s: SeekBar?) { TrackerWidget.render(applicationContext) }
+                })
+            })
+            root.addView(gap(6))
+        }
+        root.addView(text("꾸미기", 18f, bold = true))
+        swatches("시계·날짜 색", "clock_color", Color.parseColor("#A8925A"), false)
+        slider("시계 크기", "clock_sp", 66, 36, 96, "")
+        swatches("글자색 (달력·목록)", "text_color", 0, true)
+        slider("글자 크기", "font_pct", 100, 80, 130, "%")
+        root.addView(gap(8))
+
         // 글자색
         root.addView(text("글자색", 15f, bold = true))
         val group = android.widget.RadioGroup(this).apply { orientation = android.widget.RadioGroup.HORIZONTAL }

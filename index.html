@@ -886,6 +886,13 @@ var pendingSaveTimer = null;
 function init() {
   loadFromLocal();
   bindUI();
+  // 폰 위젯에서 날짜를 눌러 들어오면 그 날 데일리로
+  const qd = new URLSearchParams(location.search).get('date');
+  if (qd && /^\d{4}-\d{2}-\d{2}$/.test(qd)) {
+    const [y, m, d] = qd.split('-').map(Number);
+    state.date = new Date(y, m - 1, d);
+    if (typeof switchView === 'function') switchView('daily');
+  }
   render();
   syncFromSheets();
   setInterval(syncFromSheets, CONFIG.SYNC_INTERVAL_MS);

@@ -24,6 +24,11 @@ object Art {
     )
 
     val PLAN_COLOR: Int = Color.parseColor("#5BB5A2")
+
+    /** 사용자 설정: 글자색(없으면 자동), 글자 크기 배율 */
+    var textOverride: Int? = null
+    var fs: Float = 1f
+    private fun mainOf(dark: Boolean): Int = textOverride ?: if (dark) Color.WHITE else Color.parseColor("#1F2937")
     private val RED = Color.parseColor("#E5484D")
     private val BLUE = Color.parseColor("#3B82F6")
     private val WORK = Color.parseColor("#E85A5A")
@@ -123,7 +128,7 @@ object Art {
         val c = Canvas(bmp)
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
         val u = W / 340f
-        val main = if (dark) Color.WHITE else Color.parseColor("#1F2937")
+        val main = mainOf(dark)
         val sub = if (dark) Color.parseColor("#D1D5DB") else Color.parseColor("#9CA3AF")
         val faint = if (dark) Color.parseColor("#6B7280") else Color.parseColor("#D1D5DB")
 
@@ -145,7 +150,7 @@ object Art {
         c.translate(0f, top)
         val Hc = H - top
         val hh = if (gridOnly) 0f else 18 * u
-        p.textSize = 9.5f * u
+        p.textSize = 9.5f * u * fs
         p.textAlign = Paint.Align.CENTER
         val cw = W / 7f
         val names = arrayOf("일", "월", "화", "수", "목", "금", "토")
@@ -183,11 +188,11 @@ object Art {
                 }
                 if (!cur) numColor = faint
                 p.typeface = Typeface.DEFAULT_BOLD
-                p.textSize = 11.5f * u
+                p.textSize = 11.5f * u * fs
                 p.textAlign = Paint.Align.CENTER
                 val cx = x + cw / 2
                 p.typeface = Typeface.DEFAULT_BOLD
-                p.textSize = 11.5f * u
+                p.textSize = 11.5f * u * fs
                 p.textAlign = Paint.Align.CENTER
                 if (ds == todayDs) {
                     p.color = ACCENT
@@ -198,7 +203,7 @@ object Art {
                 c.drawText(dayNum, cx - 5 * u, y + 16.5f * u, p)
                 // 일진 (숫자 오른쪽 작게)
                 p.typeface = Typeface.DEFAULT
-                p.textSize = 6.5f * u
+                p.textSize = 6.5f * u * fs
                 p.textAlign = Paint.Align.LEFT
                 p.color = if (cur) sub else faint
                 c.drawText(Cal.ganji(ds), cx + 4.5f * u, y + 16 * u, p)
@@ -246,7 +251,7 @@ object Art {
             for (col in 0..6) {
                 if (hidden[col] > 0) {
                     p.color = sub
-                    p.textSize = 7 * u
+                    p.textSize = 7 * u * fs
                     p.textAlign = Paint.Align.RIGHT
                     c.drawText("+${hidden[col]}", cw * (col + 1) - 3 * u, y + ch - 1.5f * u, p)
                 }
@@ -267,7 +272,7 @@ object Art {
         val bmp = Bitmap.createBitmap(W, maxH, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
-        val main = if (dark) Color.WHITE else Color.parseColor("#1F2937")
+        val main = mainOf(dark)
         val sub = if (dark) Color.parseColor("#D1D5DB") else Color.parseColor("#9CA3AF")
         val used = drawHeader(c, p, u, W, maxH.toFloat(), todayDs, days, events, cache, main, sub)
         return Bitmap.createBitmap(bmp, 0, 0, W, minOf(maxH, maxOf(1, used.toInt())))
@@ -279,8 +284,8 @@ object Art {
         events: List<Cal.Ev>, cache: JSONObject?, main: Int, sub: Int
     ): Float {
         val pad = 8 * u
-        val colTop = 12 * u
-        val lineH = 14 * u
+        val colTop = 12 * u * fs
+        val lineH = 14 * u * fs
         // 내용 줄 수만큼만 높이를 씀 (빈 공간 없이)
         val todayItems = items(days, events, todayDs, todayDs).filter { it.start <= todayDs && it.end >= todayDs }
         val todosArr = cache?.optJSONArray("todos")
@@ -293,16 +298,16 @@ object Art {
 
         // 왼쪽: 할 일
         p.typeface = Typeface.DEFAULT_BOLD
-        p.textSize = 11 * u
+        p.textSize = 11 * u * fs
         p.color = main
         val done = list.count { it.optBoolean("done") }
         c.drawText("할 일", pad, colTop, p)
         p.typeface = Typeface.DEFAULT
-        p.textSize = 8.5f * u
+        p.textSize = 8.5f * u * fs
         p.color = if (list.isNotEmpty() && done == list.size) ACCENT else sub
         c.drawText(if (list.isNotEmpty() && done == list.size) "  ✓ 달성!" else "  $done/${list.size}",
             pad + 26 * u, colTop, p)
-        p.textSize = 10 * u
+        p.textSize = 10 * u * fs
         var y = colTop + lineH
         list.take(maxLines).forEach { t ->
             val d = t.optBoolean("done")
@@ -315,11 +320,11 @@ object Art {
         // 오른쪽: 오늘 일정
         val rx = half + 4 * u
         p.typeface = Typeface.DEFAULT_BOLD
-        p.textSize = 11 * u
+        p.textSize = 11 * u * fs
         p.color = main
         c.drawText("오늘 일정", rx, colTop, p)
         p.typeface = Typeface.DEFAULT
-        p.textSize = 10 * u
+        p.textSize = 10 * u * fs
         y = colTop + lineH
         todayItems.take(maxLines).forEach { it ->
             p.color = it.color
@@ -342,7 +347,7 @@ object Art {
         val c = Canvas(bmp)
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
         val u = W / 340f
-        val main = if (dark) Color.WHITE else Color.parseColor("#1F2937")
+        val main = mainOf(dark)
         val sub = Color.parseColor("#9CA3AF")
         val ds7 = (0..6).map { Data.shift(startDs, it) }
         val cw = W / 7f
@@ -363,15 +368,15 @@ object Art {
             }
             p.textAlign = Paint.Align.CENTER
             p.typeface = Typeface.DEFAULT
-            p.textSize = 8.5f * u
+            p.textSize = 8.5f * u * fs
             p.color = if (i == 0 || i == 6 || holiday) col else sub
             c.drawText(names[i], x + cw / 2, 11 * u, p)
             p.typeface = Typeface.DEFAULT_BOLD
-            p.textSize = 14 * u
+            p.textSize = 14 * u * fs
             p.color = if (ds == todayDs) ACCENT else col
             c.drawText(Data.toCal(ds).get(Calendar.DAY_OF_MONTH).toString(), x + cw / 2, 28 * u, p)
             p.typeface = Typeface.DEFAULT
-            p.textSize = 7 * u
+            p.textSize = 7 * u * fs
             p.color = sub
             c.drawText(Cal.ganji(ds), x + cw / 2, 38 * u, p)
 
@@ -381,7 +386,7 @@ object Art {
                 p.color = WORK
                 val len = (cw - 8 * u) * minOf(1f, w.toFloat() / maxW)
                 c.drawRoundRect(RectF(x + 4 * u, 42 * u, x + 4 * u + maxOf(len, 2 * u), 44.5f * u), u, u, p)
-                p.textSize = 6.5f * u
+                p.textSize = 6.5f * u * fs
                 p.color = sub
                 c.drawText(Data.hm(w / 60), x + cw / 2, 52 * u, p)
             }
@@ -398,9 +403,9 @@ object Art {
                 c.drawRoundRect(r, 3 * u, 3 * u, p)
                 p.color = if (lum(it.color) > 0.62) Color.parseColor("#1F2937") else Color.WHITE
                 p.textAlign = Paint.Align.LEFT
-                p.textSize = 6.3f * u
+                p.textSize = 6.3f * u * fs
                 if (it.time.isNotEmpty()) c.drawText(it.time, r.left + 2.5f * u, r.top + 7 * u, p)
-                p.textSize = 7.3f * u
+                p.textSize = 7.3f * u * fs
                 c.drawText(fit(p, it.title, r.width() - 4 * u), r.left + 2.5f * u,
                     if (it.time.isNotEmpty()) r.top + 15 * u else r.centerY() + 2.6f * u, p)
                 y += ih
@@ -408,7 +413,7 @@ object Art {
             }
             if (shown < list.size) {
                 p.textAlign = Paint.Align.CENTER
-                p.textSize = 7 * u
+                p.textSize = 7 * u * fs
                 p.color = sub
                 c.drawText("+${list.size - shown}", x + cw / 2, H - 2 * u, p)
             }

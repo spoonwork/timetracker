@@ -144,7 +144,7 @@ class WidgetListService : RemoteViewsService() {
         private fun view(position: Int): RemoteViews {
             val r = rows.getOrNull(position) ?: return RemoteViews(ctx.packageName, R.layout.row_header)
             val dark = Data.lightText(ctx)
-            val mainC = if (dark) Color.WHITE else Color.parseColor("#1F2937")
+            val mainC = Data.textColor(ctx) ?: if (dark) Color.WHITE else Color.parseColor("#1F2937")
             val subC = if (dark) Color.parseColor("#D1D5DB") else Color.parseColor("#6B7280")
             val doneC = Color.parseColor("#9CA3AF")
             when (r.type) {

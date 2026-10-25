@@ -58,6 +58,12 @@ object Data {
         else -> dark(c)
     }
 
+    /** 꾸미기: 글자색(0=자동), 시계색, 글자 크기 배율, 시계 크기(sp) */
+    fun textColor(c: Context): Int? = prefs(c).getInt("text_color", 0).takeIf { it != 0 }
+    fun clockColor(c: Context): Int = prefs(c).getInt("clock_color", Color.parseColor("#A8925A"))
+    fun fontScale(c: Context): Float = prefs(c).getInt("font_pct", 100) / 100f
+    fun clockSize(c: Context): Int = prefs(c).getInt("clock_sp", 66)
+
     /** 위젯 보기: day / week / month */
     fun view(c: Context): String = prefs(c).getString("view", "day") ?: "day"
 
