@@ -20,13 +20,22 @@ object Art {
         val start: String,      // 첫 날짜
         val end: String,        // 마지막 날짜 (포함)
         val order: Long,        // 같은 날 안에서 정렬
-        val time: String        // "14:30" / "10시" / ""
+        val time: String,       // "14:30" / "10시" / ""
+        val eventId: Long = -1, // 구글 캘린더 일정이면 id
+        val hour: Int = -1,     // 트래커 일정이면 시각
+        val begin: Long = 0,
+        val end2: Long = 0
     )
 
     val PLAN_COLOR: Int = Color.parseColor("#5BB5A2")
     /** 작업 스프레드 '슾' 줄 색 (분홍) */
     val SHEET_BAR: Int = Color.parseColor("#EA9999")
     val SHEET_CHECK: Int = Color.parseColor("#E06666")
+
+    /** 마지막으로 그린 머리말의 줄들 (위젯에서 누를 때 씀) */
+    var lastTodos: List<JSONObject> = emptyList()
+    var lastItems: List<Item> = emptyList()
+    var lastRows = 0
 
     /** 사용자 설정: 글자색(없으면 자동), 글자 크기 배율 */
     var textOverride: Int? = null
@@ -47,7 +56,8 @@ object Art {
                 Locale.US, "%02d:%02d", c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE)
             )
             val color = if (e.color == 0) Color.parseColor("#7986CB") else (e.color or 0xFF000000.toInt())
-            out.add(Item(e.title, color, ds.first(), ds.last(), if (e.allDay) 0L else e.begin, time))
+            out.add(Item(e.title, color, ds.first(), ds.last(), if (e.allDay) 0L else e.begin, time,
+                eventId = e.id, begin = e.begin, end2 = e.end))
         }
         if (days != null) {
             var d = fromDs
@@ -62,7 +72,7 @@ object Art {
                         val text = p.optString(k)
                         if (text.isBlank()) continue
                         val base = Data.toCal(d).timeInMillis
-                        out.add(Item(text, PLAN_COLOR, d, d, base + h * 3600_000L,
+                        out.add(Item(text, PLAN_COLOR, d, d, base + h * 3600_000L, hour = h, time =
                             String.format(Locale.US, "%02d시", h % 24)))
                     }
                 }
@@ -271,7 +281,7 @@ object Art {
     fun header(todayDs: String, days: JSONObject?, events: List<Cal.Ev>, cache: JSONObject?,
                dark: Boolean, W: Int): Bitmap {
         val u = W / 340f
-        val maxH = (120 * u).toInt()
+        val maxH = (15 * u * fs * 7 + 2).toInt()
         val bmp = Bitmap.createBitmap(W, maxH, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -287,8 +297,8 @@ object Art {
         events: List<Cal.Ev>, cache: JSONObject?, main: Int, sub: Int
     ): Float {
         val pad = 8 * u
-        val colTop = 12 * u * fs
-        val lineH = 14 * u * fs
+        val lineH = 15 * u * fs
+        val colTop = lineH * 0.78f      // 줄 높이를 똑같이 (위젯에서 줄마다 누를 수 있게)
         // 내용 줄 수만큼만 높이를 씀 (빈 공간 없이)
         val todayItems = items(days, events, todayDs, todayDs).filter { it.start <= todayDs && it.end >= todayDs }
         val todosArr = cache?.optJSONArray("todos")
@@ -297,9 +307,12 @@ object Art {
             .filter { !it.optString("text").startsWith("📅") }.map { JSONObject(it.toString()).put("_wt", true) } +
             (0 until (todosArr?.length() ?: 0)).mapNotNull { todosArr?.optJSONObject(it) })
             .filter { it.optString("text").isNotBlank() }
-        val capLines = maxOf(1, ((h - colTop - 4 * u) / lineH).toInt())
+        val capLines = minOf(6, maxOf(1, (h / lineH).toInt() - 1))
         val maxLines = minOf(capLines, maxOf(1, todayItems.size, list.size))
-        val usedH = colTop + lineH * maxLines + 10 * u
+        val usedH = lineH * (maxLines + 1)
+        lastTodos = list.take(maxLines)
+        lastItems = todayItems.take(maxLines)
+        lastRows = maxLines
         val half = W / 2f
 
         // 왼쪽: 할 일

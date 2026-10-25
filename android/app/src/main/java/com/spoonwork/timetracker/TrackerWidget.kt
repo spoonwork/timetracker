@@ -317,9 +317,36 @@ class TrackerWidget : AppWidgetProvider() {
             if (isMonth && maxH > 330) {
                 val hb = Art.header(today, days, Cal.events(context, today, today), cache, light, bw)
                 rv.setImageViewBitmap(R.id.head_img, hb)
-                rv.setViewVisibility(R.id.head_img, android.view.View.VISIBLE)
+                rv.setViewVisibility(R.id.head_box, android.view.View.VISIBLE)
                 headDp = hb.height / scale
-            } else rv.setViewVisibility(R.id.head_img, android.view.View.GONE)
+                // 머리말 줄마다 누르기: 왼쪽 = 할 일 체크, 오른쪽 = 일정 열기
+                val pkg = context.packageName
+                val res = context.resources
+                for (r in 0..6) rv.setViewVisibility(res.getIdentifier("hrow$r", "id", pkg),
+                    if (r <= Art.lastRows) android.view.View.VISIBLE else android.view.View.GONE)
+                for (r in 1..6) {
+                    val l = res.getIdentifier("hl$r", "id", pkg)
+                    val rr = res.getIdentifier("hr$r", "id", pkg)
+                    val td = Art.lastTodos.getOrNull(r - 1)
+                    if (td != null) {
+                        val i = Intent(context, ActionActivity::class.java)
+                        if (td.optBoolean("_wt")) i.putExtra("type", "wt").putExtra("text", td.optString("text"))
+                            .putExtra("day", today).putExtra("done", !td.optBoolean("done"))
+                        else i.putExtra("type", "todo").putExtra("text", td.optString("text")).putExtra("day", today)
+                        rv.setOnClickPendingIntent(l, PendingIntent.getActivity(context, 7000 + (id % 1000) * 16 + r, i,
+                            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+                    }
+                    val it = Art.lastItems.getOrNull(r - 1)
+                    if (it != null) {
+                        val i = Intent(context, ActionActivity::class.java)
+                        if (it.eventId >= 0) i.putExtra("type", "gcal").putExtra("id", it.eventId)
+                            .putExtra("begin", it.begin).putExtra("end", it.end2)
+                        else i.putExtra("type", "plan").putExtra("hour", it.hour).putExtra("day", today)
+                        rv.setOnClickPendingIntent(rr, PendingIntent.getActivity(context, 7100 + (id % 1000) * 16 + r, i,
+                            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+                    }
+                }
+            } else rv.setViewVisibility(R.id.head_box, android.view.View.GONE)
 
             rv.setViewVisibility(R.id.wk_row, if (isMonth) android.view.View.VISIBLE else android.view.View.GONE)
             for (i in 0..6) {
