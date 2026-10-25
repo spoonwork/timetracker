@@ -238,18 +238,23 @@ object Art {
     ): Float {
         val cal = Data.toCal(todayDs)
         val week = arrayOf("일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일")
-        p.textAlign = Paint.Align.CENTER
-        p.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        p.textSize = 34 * u
+        val pad = 8 * u
+
+        // 날짜 한 줄 (큰 시계는 폰 기본 시계 위젯을 쓰는 걸 추천)
+        p.textAlign = Paint.Align.LEFT
+        p.typeface = Typeface.DEFAULT_BOLD
+        p.textSize = 12 * u
         p.color = main
-        c.drawText(cal.get(Calendar.DAY_OF_MONTH).toString(), W / 2f, 34 * u, p)
+        val dateText = "${cal.get(Calendar.MONTH) + 1}월 ${cal.get(Calendar.DAY_OF_MONTH)}일 " + week[cal.get(Calendar.DAY_OF_WEEK) - 1]
+        c.drawText(dateText, pad, 14 * u, p)
+        val dw = p.measureText(dateText)
+        p.typeface = Typeface.DEFAULT
         p.textSize = 9 * u
         p.color = sub
-        c.drawText("${cal.get(Calendar.MONTH) + 1}월 ${cal.get(Calendar.DAY_OF_MONTH)}일 " +
-            week[cal.get(Calendar.DAY_OF_WEEK) - 1] + "  ·  " + Cal.ganji(todayDs) + "日", W / 2f, 47 * u, p)
+        c.drawText("  " + Cal.ganji(todayDs) + "日", pad + dw, 14 * u, p)
 
-        val colTop = 60 * u
-        val lineH = 12 * u
+        val colTop = 34 * u
+        val lineH = 14 * u
         // 내용 줄 수만큼만 높이를 씀 (빈 공간 없이)
         val todayItems = items(days, events, todayDs, todayDs).filter { it.start <= todayDs && it.end >= todayDs }
         val todosArr = cache?.optJSONArray("todos")
@@ -257,43 +262,48 @@ object Art {
             .filter { it.optString("text").isNotBlank() }
         val capLines = maxOf(1, ((h - colTop - 4 * u) / lineH).toInt())
         val maxLines = minOf(capLines, maxOf(1, todayItems.size, list.size))
-        val usedH = colTop + lineH * maxLines + 8 * u
+        val usedH = colTop + lineH * maxLines + 10 * u
         val half = W / 2f
-        p.textAlign = Paint.Align.LEFT
 
-        // 왼쪽: 오늘 일정
+        // 왼쪽: 할 일
         p.typeface = Typeface.DEFAULT_BOLD
-        p.textSize = 9.5f * u
-        p.color = main
-        c.drawText("일정", 8 * u, colTop, p)
-        p.typeface = Typeface.DEFAULT
-        p.textSize = 8.5f * u
-        var y = colTop + lineH
-        todayItems.take(maxLines).forEach { it ->
-            p.color = it.color
-            c.drawRoundRect(RectF(8 * u, y - 7.5f * u, 10.5f * u, y + 1.5f * u), u, u, p)
-            p.color = main
-            val label = (if (it.time.isNotEmpty()) it.time + "  " else "") + it.title
-            c.drawText(fit(p, label, half - 22 * u), 14 * u, y, p)
-            y += lineH
-        }
-        if (todayItems.isEmpty()) { p.color = sub; c.drawText("없음", 8 * u, y, p) }
-
-        // 오른쪽: 할 일
-        p.typeface = Typeface.DEFAULT_BOLD
-        p.textSize = 9.5f * u
+        p.textSize = 11 * u
         p.color = main
         val done = list.count { it.optBoolean("done") }
-        c.drawText(if (list.isNotEmpty() && done == list.size) "할 일 ✓ 달성!" else "할 일  $done/${list.size}", half + 6 * u, colTop, p)
+        c.drawText("할 일", pad, colTop, p)
         p.typeface = Typeface.DEFAULT
         p.textSize = 8.5f * u
-        y = colTop + lineH
+        p.color = if (list.isNotEmpty() && done == list.size) ACCENT else sub
+        c.drawText(if (list.isNotEmpty() && done == list.size) "  ✓ 달성!" else "  $done/${list.size}",
+            pad + 26 * u, colTop, p)
+        p.textSize = 10 * u
+        var y = colTop + lineH
         list.take(maxLines).forEach { t ->
             val d = t.optBoolean("done")
             p.color = if (d) sub else main
-            c.drawText(fit(p, (if (d) "☑ " else "☐ ") + t.optString("text"), half - 14 * u), half + 6 * u, y, p)
+            c.drawText(fit(p, (if (d) "☑ " else "☐ ") + t.optString("text"), half - pad - 6 * u), pad, y, p)
             y += lineH
         }
+        if (list.isEmpty()) { p.color = sub; c.drawText("없음", pad, y, p) }
+
+        // 오른쪽: 오늘 일정
+        val rx = half + 4 * u
+        p.typeface = Typeface.DEFAULT_BOLD
+        p.textSize = 11 * u
+        p.color = main
+        c.drawText("오늘 일정", rx, colTop, p)
+        p.typeface = Typeface.DEFAULT
+        p.textSize = 10 * u
+        y = colTop + lineH
+        todayItems.take(maxLines).forEach { it ->
+            p.color = it.color
+            c.drawRoundRect(RectF(rx, y - 9 * u, rx + 2.5f * u, y + 1.5f * u), u, u, p)
+            p.color = main
+            val label = (if (it.time.isNotEmpty()) it.time + "  " else "") + it.title
+            c.drawText(fit(p, label, W - rx - pad - 6 * u), rx + 6 * u, y, p)
+            y += lineH
+        }
+        if (todayItems.isEmpty()) { p.color = sub; c.drawText("없음", rx, y, p) }
         return usedH
     }
 
