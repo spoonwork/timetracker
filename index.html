@@ -2953,18 +2953,18 @@ function shortenLabel(app, title) {
 }
 
 // 겹친 기록은 한 번만 (트래커가 두 개 켜져 있던 날 등) → 하루 합계가 24시간을 넘지 않게
+// 트래커처럼: 다음 기록이 시작되면 앞 기록은 거기서 끝난 걸로 (세부 전환은 그대로 살림)
 function dedupeAutoLogs(byDate) {
   Object.keys(byDate).forEach(d => {
     const arr = byDate[d].slice().sort((a, b) => a.startMin - b.startMin);
-    let maxEnd = -Infinity;
     const out = [];
-    arr.forEach(a => {
+    arr.forEach((a, i) => {
       const dur = a.durationSec !== undefined ? a.durationSec / 60 : (a.endMin - a.startMin);
-      const st = Math.max(a.startMin, maxEnd);
-      const en = a.startMin + dur;
-      if (en - st < 1 / 60) return;          // 이미 센 시간
-      out.push({ ...a, startMin: st, endMin: en, durationSec: (en - st) * 60 });
-      maxEnd = Math.max(maxEnd, en);
+      let en = a.startMin + dur;
+      const nx = arr[i + 1];
+      if (nx && nx.startMin < en) en = nx.startMin;
+      if (en - a.startMin < 1 / 60) return;     // 같은 시각에 시작한 중복 → 하나만
+      out.push({ ...a, endMin: en, durationSec: (en - a.startMin) * 60 });
     });
     byDate[d] = out;
   });
