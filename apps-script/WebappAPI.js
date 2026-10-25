@@ -236,6 +236,46 @@ function workByDay(ss, fromDs, toDs, todayDs, tz) {
   return out;
 }
 
+/** PC 기록(logs)을 위젯 막대용으로: {날짜: [[시작분, 끝분, 라벨], ...]} (하루 시작 5시 기준 분) */
+const WIDGET_LABELS = [['tumblbug', '텀블벅'], ['텀블벅', '텀블벅'], ['invoice', '인보이스'], ['인보이스', '인보이스'],
+  ['synology', '나스'], ['sketchup', 'SU'], ['blender', '3D'], ['excel', 'XLS'], ['hncapp', 'HWP'], ['winword', 'Word'],
+  ['pureref', 'PR'], ['youtube', '유튜브'], ['kakaotalk', '카톡']];
+function logIntervals(ss, fromDs, toDs, tz) {
+  const out = {};
+  const logs = ss.getSheetByName('logs');
+  if (!logs || logs.getLastRow() < 2) return out;
+  let end = logs.getLastRow(), done = false, guard = 0;
+  while (end >= 2 && !done && guard++ < 20) {
+    const start = Math.max(2, end - 1499);
+    const rows = logs.getRange(start, 1, end - start + 1, 5).getValues();
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const r = rows[i];
+      const st = toDateVal(r[0]);
+      if (!st) continue;
+      const shifted = new Date(st.getTime() - WIDGET_DAY_START * 3600000);
+      const ds = Utilities.formatDate(shifted, tz, 'yyyy-MM-dd');
+      if (ds < fromDs) { done = true; break; }
+      if (ds > toDs) continue;
+      const en = toDateVal(r[1]);
+      if (!en || en <= st) continue;
+      const cat = String(r[4] || '');
+      if (cat !== 'work' && cat.indexOf('distraction') !== 0) continue;
+      const hay = (String(r[2] || '') + ' ' + String(r[3] || '')).toLowerCase();
+      let label = cat === 'work' ? '작업' : cat;
+      for (let k = 0; k < WIDGET_LABELS.length; k++) {
+        if (hay.indexOf(WIDGET_LABELS[k][0]) >= 0) { label = WIDGET_LABELS[k][1]; break; }
+      }
+      const hm = Utilities.formatDate(shifted, tz, 'H:m').split(':');
+      const s0 = Number(hm[0]) * 60 + Number(hm[1]);
+      const e0 = Math.min(1440, s0 + Math.round((en.getTime() - st.getTime()) / 60000));
+      if (e0 <= s0) continue;
+      (out[ds] = out[ds] || []).push([s0, e0, label]);
+    }
+    end = start - 1;
+  }
+  return out;
+}
+
 /** 작업 캘린더 날짜칸 색 → {yyyy-MM-dd: '#rrggbb'} (3시간 캐시)
  *  녹색·파랑 = 작업일, 빨강 = 쉬는 날, 회색 = 콘티일. 노란색(오늘 표시)이면 옆 칸 색을 씀 */
 function workCalColors(fresh) {
@@ -426,6 +466,9 @@ function buildWidgetSummary(ss, date, fromDs, toDs, fresh) {
   Object.keys(td).forEach(function (d) {
     if (d >= fromDs && d <= toDs && td[d] > 0) work[d] = td[d];
   });
+  // 막대에 칠할 PC 기록: 최근 일주일만 (가볍게)
+  const ivFrom = fromDs > shiftDate(todayDs, -7) ? fromDs : shiftDate(todayDs, -7);
+  const ivs = ivFrom <= todayDs ? logIntervals(ss, ivFrom, toDs < todayDs ? toDs : todayDs, tz) : {};
   const days = {};
   for (let d = fromDs; d <= toDs; d = shiftDate(d, 1)) {
     const item = {};
@@ -441,6 +484,7 @@ function buildWidgetSummary(ss, date, fromDs, toDs, fresh) {
     if (hc && Object.keys(hc).length) item.c = hc;
     const gw = (app.gcalWant || {})[d];
     if (gw && Object.keys(gw).length) item.gw = gw;
+    if (ivs[d] && ivs[d].length) item.wi = ivs[d];
     days[d] = item;
   }
 

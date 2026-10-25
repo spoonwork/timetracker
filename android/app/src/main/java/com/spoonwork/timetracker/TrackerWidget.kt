@@ -223,7 +223,8 @@ class TrackerWidget : AppWidgetProvider() {
             val hasUpdate = prefs.getInt("latest", -1) > Updater.currentVersion(context)
             val dark = Data.dark(context)
             val light = Data.lightText(context)
-            val strip = drawStrip(cache?.optJSONArray("blocks"), light)
+            val strip = drawStrip(cache?.optJSONArray("blocks"), light,
+                wi = cache?.optJSONObject("days")?.optJSONObject(today)?.optJSONArray("wi"))
             Art.textOverride = Data.textColor(context)
             Art.fs = Data.fontScale(context)
             Art.showSheet = prefs.getBoolean("cal_wt", true)
@@ -276,7 +277,7 @@ class TrackerWidget : AppWidgetProvider() {
                 rv.setTextViewText(R.id.btn_refresh, if (loading) "⋯" else "↻")
                 if (isDay) {
                     rv.setImageViewBitmap(R.id.strip,
-                        if (sel != null) drawStrip(selDay?.optJSONArray("b"), light, showNow = false) else strip)
+                        if (sel != null) drawStrip(selDay?.optJSONArray("b"), light, showNow = false, wi = selDay?.optJSONArray("wi")) else strip)
                     val base = 100 + (id % 1000) * 8
                     rv.setOnClickPendingIntent(R.id.btn_sleep, quick(context, "sleep", base + 1, sel))
                     rv.setOnClickPendingIntent(R.id.btn_block, quick(context, "block", base + 2, sel))
@@ -532,7 +533,7 @@ class TrackerWidget : AppWidgetProvider() {
         }
 
         /** 하루(5시~다음날 5시) 칠한 칸 띠 */
-        fun drawStrip(blocks: JSONArray?, dark: Boolean = false, showNow: Boolean = true): Bitmap {
+        fun drawStrip(blocks: JSONArray?, dark: Boolean = false, showNow: Boolean = true, wi: JSONArray? = null): Bitmap {
             val w = 960f
             val h = 96f
             val barH = 60f
@@ -544,6 +545,18 @@ class TrackerWidget : AppWidgetProvider() {
             p.color = if (dark) Color.parseColor("#33FFFFFF") else Color.parseColor("#EEF1F4")
             c.drawRoundRect(RectF(0f, 0f, w, barH), 12f, 12f, p)
 
+            // PC 트래커 기록 (작업 등) 먼저, 손으로 적은 기록은 그 위에
+            if (wi != null) {
+                for (i in 0 until wi.length()) {
+                    val a = wi.optJSONArray(i) ?: continue
+                    val s = a.optInt(0, -1)
+                    val e = a.optInt(1, -1)
+                    if (s < 0 || e <= s) continue
+                    val lab = a.optString(2)
+                    p.color = if (Data.COLORS.containsKey(lab)) Data.color(lab) else Data.color("작업")
+                    c.drawRect(s * scale, 0f, maxOf(e * scale, s * scale + 2f), barH, p)
+                }
+            }
             if (blocks != null) {
                 for (i in 0 until blocks.length()) {
                     val b = blocks.optJSONObject(i) ?: continue
