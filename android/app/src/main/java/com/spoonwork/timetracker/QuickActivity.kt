@@ -37,7 +37,8 @@ class QuickActivity : Activity() {
     private var pm = 0             // 일정 시작 분
     private var peH = 11           // 일정 끝 (0~23시)
     private var peM = 0
-    private var pendingEvent: Triple<String, Long, Long>? = null
+    private var pendingCal: (() -> Unit)? = null
+    private var editHour: Int? = null       // 고치는 중인 기존 일정의 시각
     private var app: JSONObject? = null
     private var touched = false
 
@@ -187,7 +188,7 @@ class QuickActivity : Activity() {
                 pm = m
                 // 끝 시간은 시작 + 1시간으로 맞춤
                 peH = (h + 1) % 24; peM = m
-                if (old != planHour) fillPlanText()
+                if (old != planHour && editHour == null) fillPlanText()
                 refreshUi()
             }, planHour % 24, pm, true).show()
         }
@@ -331,8 +332,19 @@ class QuickActivity : Activity() {
         val existing = plans?.optString(planHour.toString(), "") ?: ""
         planEdit.setText(existing)
         planEdit.setSelection(planEdit.text.length)
-        // 이미 있는 일정을 고칠 땐 구글 캘린더에 또 넣지 않게 기본 해제
-        gcalCheck.isChecked = existing.isBlank()
+        editHour = if (existing.isBlank()) null else planHour
+        val link = if (existing.isBlank()) null else Cal.link(applicationContext, day, planHour)
+        if (link != null) {
+            // 구글 캘린더에 넣었던 시간 그대로 불러오기
+            val b = Calendar.getInstance().apply { timeInMillis = link.begin }
+            val e = Calendar.getInstance().apply { timeInMillis = link.end }
+            pm = b.get(Calendar.MINUTE); peH = e.get(Calendar.HOUR_OF_DAY); peM = e.get(Calendar.MINUTE)
+            gcalCheck.text = "구글 캘린더와 연결됨 (끄면 캘린더에서 지움)"
+            gcalCheck.isChecked = true
+        } else {
+            gcalCheck.text = "구글 캘린더에도 추가"
+            gcalCheck.isChecked = existing.isBlank()
+        }
     }
 
     // ---------------- 목록 (그 날 칠한 칸 / 일정 / 할 일) ----------------
@@ -393,7 +405,7 @@ class QuickActivity : Activity() {
                         pm = 0; peH = (h + 1) % 24; peM = 0
                         fillPlanText()
                         refreshUi()
-                    }, null))
+                    }) { deletePlan(h) })
                 }
             }
             "todo" -> {
@@ -464,28 +476,39 @@ class QuickActivity : Activity() {
         }.start()
     }
 
-    private fun addToGcal(title: String, begin: Long, end: Long) {
+    /** 캘린더 권한이 있으면 바로, 없으면 물어본 뒤 실행 */
+    private fun withCal(action: () -> Unit) {
         if (checkSelfPermission(android.Manifest.permission.WRITE_CALENDAR) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            pendingEvent = Triple(title, begin, end)
+            pendingCal = action
             requestPermissions(arrayOf(android.Manifest.permission.WRITE_CALENDAR, android.Manifest.permission.READ_CALENDAR), 11)
-            return
-        }
-        Thread {
-            val ok = Cal.insert(applicationContext, title, begin, end)
-            runOnUiThread {
-                status.text = if (ok) "구글 캘린더에도 넣었어요 ✓" else "구글 캘린더 추가 실패 (캘린더 계정 확인)"
-            }
-            TrackerWidget.render(applicationContext)
-        }.start()
+        } else Thread { action() }.start()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        val ev = pendingEvent ?: return
-        pendingEvent = null
+        val act = pendingCal ?: return
+        pendingCal = null
         if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            addToGcal(ev.first, ev.second, ev.third)
-        } else status.text = "캘린더 권한이 없어서 구글 캘린더엔 못 넣었어요"
+            Thread { act() }.start()
+        } else status.text = "캘린더 권한이 없어서 구글 캘린더엔 반영 못 했어요"
+    }
+
+    private fun calDone(msg: String) {
+        runOnUiThread { status.text = msg }
+        TrackerWidget.render(applicationContext)
+    }
+
+    /** 일정 지우기 (구글 캘린더에 연결돼 있으면 거기서도) */
+    private fun deletePlan(h: Int) {
+        val d = day
+        commit("일정 지움", JSONArray().put(Data.op("plan_set", d).put("h", h).put("text", "")))
+        if (editHour == h) { editHour = null; planEdit.setText("") }
+        val link = Cal.link(applicationContext, d, h) ?: return
+        withCal {
+            Cal.delete(applicationContext, link.id)
+            Cal.setLink(applicationContext, d, h, null)
+            calDone("일정 지움 (구글 캘린더에서도) ✓")
+        }
     }
 
     private fun save() {
@@ -500,17 +523,45 @@ class QuickActivity : Activity() {
                 commit(msg, Data.paintOps(day, sh, sm, eh, em, cat))
             }
             "plan" -> {
-                val text = planEdit.text.toString()
-                val ops = JSONArray().put(Data.op("plan_set", day).put("h", planHour).put("text", text))
-                val toGcal = gcalCheck.isChecked && text.isNotBlank()
-                commit(if (text.isBlank()) "일정 지움" else if (toGcal) "일정 저장 + 구글 캘린더" else "일정 저장", ops)
-                if (toGcal) {
-                    val begin = Data.toCal(day).timeInMillis + planHour * 3600_000L + pm * 60_000L
-                    var end = Data.toCal(day).timeInMillis +
-                        (if (peH < Data.DAY_START) peH + 24 else peH) * 3600_000L + peM * 60_000L
-                    if (end <= begin) end = begin + 3600_000L
-                    addToGcal(text.trim(), begin, end)
-                    gcalCheck.isChecked = false
+                val text = planEdit.text.toString().trim()
+                val d = day
+                val newH = planHour
+                val oldH = editHour
+                if (text.isEmpty()) {
+                    deletePlan(oldH ?: newH)
+                    return
+                }
+                val ops = JSONArray()
+                if (oldH != null && oldH != newH) ops.put(Data.op("plan_set", d).put("h", oldH).put("text", ""))
+                ops.put(Data.op("plan_set", d).put("h", newH).put("text", text))
+                val begin = Data.toCal(d).timeInMillis + newH * 3600_000L + pm * 60_000L
+                var end = Data.toCal(d).timeInMillis +
+                    (if (peH < Data.DAY_START) peH + 24 else peH) * 3600_000L + peM * 60_000L
+                if (end <= begin) end = begin + 3600_000L
+                val link = oldH?.let { Cal.link(applicationContext, d, it) }
+                val want = gcalCheck.isChecked
+                commit("일정 저장", ops)
+                editHour = newH
+                val ctx = applicationContext
+                when {
+                    link != null && want -> withCal {
+                        Cal.update(ctx, link.id, text, begin, end)
+                        if (oldH != newH) Cal.setLink(ctx, d, oldH!!, null)
+                        Cal.setLink(ctx, d, newH, Cal.Link(link.id, begin, end))
+                        calDone("일정 저장 + 구글 캘린더 수정 ✓")
+                    }
+                    link != null && !want -> withCal {
+                        Cal.delete(ctx, link.id)
+                        Cal.setLink(ctx, d, oldH!!, null)
+                        calDone("일정 저장 (구글 캘린더에선 지움) ✓")
+                    }
+                    link == null && want -> withCal {
+                        val id = Cal.insert(ctx, text, begin, end)
+                        if (id != null) {
+                            Cal.setLink(ctx, d, newH, Cal.Link(id, begin, end))
+                            calDone("일정 저장 + 구글 캘린더 추가 ✓")
+                        } else calDone("구글 캘린더 추가 실패 (캘린더 계정 확인)")
+                    }
                 }
             }
             "todo" -> {

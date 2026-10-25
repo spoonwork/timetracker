@@ -76,10 +76,12 @@ object Cal {
             CalendarContract.Instances.VISIBLE
         )
         val out = mutableListOf<Ev>()
+        val linked = linkedIds(c)       // 트래커 일정으로 이미 보이는 건 빼기 (두 번 안 보이게)
         try {
             c.contentResolver.query(uri, proj, null, null, CalendarContract.Instances.BEGIN + " ASC")?.use { cur ->
                 while (cur.moveToNext()) {
                     if (cur.getInt(6) == 0) continue
+                    if (linked.contains(cur.getLong(0))) continue
                     val ev = Ev(
                         cur.getLong(0),
                         cur.getString(1) ?: "(제목 없음)",
@@ -100,9 +102,9 @@ object Cal {
     }
 
     /** 내 구글 캘린더(기본)에 일정 추가 */
-    fun insert(c: Context, title: String, begin: Long, end: Long): Boolean {
+    fun insert(c: Context, title: String, begin: Long, end: Long): Long? {
         return try {
-            val calId = writableCalendar(c) ?: return false
+            val calId = writableCalendar(c) ?: return null
             val v = android.content.ContentValues().apply {
                 put(CalendarContract.Events.CALENDAR_ID, calId)
                 put(CalendarContract.Events.TITLE, title)
@@ -110,11 +112,44 @@ object Cal {
                 put(CalendarContract.Events.DTEND, end)
                 put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
             }
-            c.contentResolver.insert(CalendarContract.Events.CONTENT_URI, v) != null
+            c.contentResolver.insert(CalendarContract.Events.CONTENT_URI, v)?.lastPathSegment?.toLongOrNull()
         } catch (e: Exception) {
-            false
+            null
         }
     }
+
+    fun update(c: Context, id: Long, title: String, begin: Long, end: Long): Boolean = try {
+        val v = android.content.ContentValues().apply {
+            put(CalendarContract.Events.TITLE, title)
+            put(CalendarContract.Events.DTSTART, begin)
+            put(CalendarContract.Events.DTEND, end)
+            put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+        }
+        c.contentResolver.update(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id), v, null, null) > 0
+    } catch (e: Exception) { false }
+
+    fun delete(c: Context, id: Long): Boolean = try {
+        c.contentResolver.delete(ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id), null, null) > 0
+    } catch (e: Exception) { false }
+
+    // ---- 트래커 일정 ↔ 구글 캘린더 일정 연결 (폰에 저장) ----
+    data class Link(val id: Long, val begin: Long, val end: Long)
+
+    fun link(c: Context, day: String, h: Int): Link? {
+        val s = Data.prefs(c).getString("lnk_${day}_$h", null) ?: return null
+        val p = s.split("|")
+        return try { Link(p[0].toLong(), p[1].toLong(), p[2].toLong()) } catch (e: Exception) { null }
+    }
+
+    fun setLink(c: Context, day: String, h: Int, l: Link?) {
+        val e = Data.prefs(c).edit()
+        if (l == null) e.remove("lnk_${day}_$h") else e.putString("lnk_${day}_$h", "${l.id}|${l.begin}|${l.end}")
+        e.apply()
+    }
+
+    fun linkedIds(c: Context): Set<Long> =
+        Data.prefs(c).all.filterKeys { it.startsWith("lnk_") }.values
+            .mapNotNull { (it as? String)?.split("|")?.firstOrNull()?.toLongOrNull() }.toSet()
 
     private fun writableCalendar(c: Context): Long? {
         val proj = arrayOf(
