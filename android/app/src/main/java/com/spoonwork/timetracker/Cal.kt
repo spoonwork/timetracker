@@ -99,6 +99,46 @@ object Cal {
         return out
     }
 
+    /** 내 구글 캘린더(기본)에 일정 추가 */
+    fun insert(c: Context, title: String, begin: Long, end: Long): Boolean {
+        return try {
+            val calId = writableCalendar(c) ?: return false
+            val v = android.content.ContentValues().apply {
+                put(CalendarContract.Events.CALENDAR_ID, calId)
+                put(CalendarContract.Events.TITLE, title)
+                put(CalendarContract.Events.DTSTART, begin)
+                put(CalendarContract.Events.DTEND, end)
+                put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+            }
+            c.contentResolver.insert(CalendarContract.Events.CONTENT_URI, v) != null
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun writableCalendar(c: Context): Long? {
+        val proj = arrayOf(
+            CalendarContract.Calendars._ID,
+            CalendarContract.Calendars.IS_PRIMARY,
+            CalendarContract.Calendars.ACCOUNT_TYPE,
+            CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL,
+            CalendarContract.Calendars.VISIBLE
+        )
+        var best: Long? = null
+        var bestScore = -1
+        c.contentResolver.query(CalendarContract.Calendars.CONTENT_URI, proj, null, null, null)?.use { cur ->
+            while (cur.moveToNext()) {
+                if (cur.getInt(3) < CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR) continue
+                var score = 0
+                if (cur.getInt(1) == 1) score += 4
+                if (cur.getString(2) == "com.google") score += 2
+                if (cur.getInt(4) == 1) score += 1
+                if (score > bestScore) { bestScore = score; best = cur.getLong(0) }
+            }
+        }
+        return best
+    }
+
     // ---------------- 일진 (웹앱과 같은 계산) ----------------
     private val GAN = arrayOf("甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸")
     private val JI = arrayOf("子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥")

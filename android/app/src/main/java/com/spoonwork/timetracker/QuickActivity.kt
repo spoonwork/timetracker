@@ -33,7 +33,11 @@ class QuickActivity : Activity() {
     private var sm = 0
     private var eh = 8
     private var em = 0
-    private var planHour = 10
+    private var planHour = 10      // 5~28 (기록표 기준 시각)
+    private var pm = 0             // 일정 시작 분
+    private var peH = 11           // 일정 끝 (0~23시)
+    private var peM = 0
+    private var pendingEvent: Triple<String, Long, Long>? = null
     private var app: JSONObject? = null
     private var touched = false
 
@@ -44,7 +48,9 @@ class QuickActivity : Activity() {
     private lateinit var startBtn: TextView
     private lateinit var endBtn: TextView
     private lateinit var panePlan: LinearLayout
-    private lateinit var hourSpinner: Spinner
+    private lateinit var planStartBtn: TextView
+    private lateinit var planEndBtn: TextView
+    private lateinit var gcalCheck: android.widget.CheckBox
     private lateinit var planEdit: EditText
     private lateinit var paneTodo: LinearLayout
     private lateinit var todoEdit: EditText
@@ -123,6 +129,7 @@ class QuickActivity : Activity() {
             val c = Data.toCal(day)
             DatePickerDialog(this, { _, y, m, d ->
                 day = String.format(Locale.US, "%04d-%02d-%02d", y, m + 1, d)
+                if (mode == "plan") fillPlanText()
                 refreshUi()
             }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show()
         }
@@ -173,19 +180,28 @@ class QuickActivity : Activity() {
 
         // 일정
         panePlan = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        hourSpinner = Spinner(this)
-        val hours = (Data.DAY_START until Data.DAY_START + 24).map { String.format(Locale.US, "%02d시", it % 24) }
-        hourSpinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, hours)
-        hourSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
-                if (planHour != pos + Data.DAY_START) {
-                    planHour = pos + Data.DAY_START
-                    fillPlanText()
-                }
-            }
-            override fun onNothingSelected(p: AdapterView<*>?) {}
+        planStartBtn = pill("") {
+            TimePickerDialog(this, { _, h, m ->
+                val old = planHour
+                planHour = if (h < Data.DAY_START) h + 24 else h
+                pm = m
+                // 끝 시간은 시작 + 1시간으로 맞춤
+                peH = (h + 1) % 24; peM = m
+                if (old != planHour) fillPlanText()
+                refreshUi()
+            }, planHour % 24, pm, true).show()
         }
-        panePlan.addView(row("시각", hourSpinner))
+        planEndBtn = pill("") {
+            TimePickerDialog(this, { _, h, m -> peH = h; peM = m; refreshUi() }, peH, peM, true).show()
+        }
+        val ptimes = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(planStartBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+            addView(label("  ~  ", 15f, textMain))
+            addView(planEndBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        }
+        panePlan.addView(row("시간", ptimes))
         planEdit = EditText(this).apply {
             hint = "비우고 저장하면 지워져요"
             textSize = 16f
@@ -194,6 +210,14 @@ class QuickActivity : Activity() {
             setOnEditorActionListener { _, _, _ -> save(); true }
         }
         panePlan.addView(row("내용", planEdit))
+        gcalCheck = android.widget.CheckBox(this).apply {
+            text = "구글 캘린더에도 추가"
+            textSize = 14f
+            isChecked = true
+            setTextColor(textMain)
+        }
+        panePlan.addView(gcalCheck, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT).apply { marginStart = dp(48) })
         root.addView(panePlan)
 
         // 할 일
@@ -267,7 +291,7 @@ class QuickActivity : Activity() {
                 day = intent.getStringExtra("day")?.takeIf { it.isNotEmpty() && hour >= 0 } ?: Data.trackerDay()
                 val h = if (hour >= 0) hour else now.get(Calendar.HOUR_OF_DAY)
                 planHour = if (h < Data.DAY_START) h + 24 else h
-                hourSpinner.setSelection(planHour - Data.DAY_START)
+                pm = 0; peH = (planHour + 1) % 24; peM = 0
                 fillPlanText()
             }
             "todo" -> {
@@ -297,14 +321,18 @@ class QuickActivity : Activity() {
         }
         startBtn.text = String.format(Locale.US, "%02d:%02d", sh, sm)
         endBtn.text = String.format(Locale.US, "%02d:%02d", eh, em)
-        if (mode == "plan") fillPlanText()
+        planStartBtn.text = String.format(Locale.US, "%02d:%02d", planHour % 24, pm)
+        planEndBtn.text = String.format(Locale.US, "%02d:%02d", peH, peM)
         renderList()
     }
 
     private fun fillPlanText() {
         val plans = app?.optJSONObject("hourPlans")?.optJSONObject(day)
-        planEdit.setText(plans?.optString(planHour.toString(), "") ?: "")
+        val existing = plans?.optString(planHour.toString(), "") ?: ""
+        planEdit.setText(existing)
         planEdit.setSelection(planEdit.text.length)
+        // 이미 있는 일정을 고칠 땐 구글 캘린더에 또 넣지 않게 기본 해제
+        gcalCheck.isChecked = existing.isBlank()
     }
 
     // ---------------- 목록 (그 날 칠한 칸 / 일정 / 할 일) ----------------
@@ -362,8 +390,9 @@ class QuickActivity : Activity() {
                     val lead = label(String.format(Locale.US, "%02d시", h % 24), 13f)
                     listBox.addView(listRow(lead, plans!!.optString(h.toString()), {
                         planHour = h
-                        hourSpinner.setSelection(h - Data.DAY_START)
+                        pm = 0; peH = (h + 1) % 24; peM = 0
                         fillPlanText()
+                        refreshUi()
                     }, null))
                 }
             }
@@ -391,7 +420,11 @@ class QuickActivity : Activity() {
     private fun load() {
         // 위젯에 있는 오늘 데이터로 먼저 보여주고, 최신 데이터는 뒤에서 받아옴
         if (app == null) {
-            Data.appFromCache(applicationContext)?.let { app = it; refreshUi() }
+            Data.appFromCache(applicationContext)?.let {
+                app = it
+                if (mode == "plan") fillPlanText()
+                refreshUi()
+            }
         }
         status.text = if (app == null) "불러오는 중…" else ""
         Thread {
@@ -401,6 +434,7 @@ class QuickActivity : Activity() {
                     if (!touched) {          // 그 사이 고친 게 있으면 지금 화면 유지
                         app = a
                         status.text = ""
+                        if (mode == "plan" && planEdit.text.isEmpty()) fillPlanText()
                         refreshUi()
                     }
                 }
@@ -430,6 +464,30 @@ class QuickActivity : Activity() {
         }.start()
     }
 
+    private fun addToGcal(title: String, begin: Long, end: Long) {
+        if (checkSelfPermission(android.Manifest.permission.WRITE_CALENDAR) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            pendingEvent = Triple(title, begin, end)
+            requestPermissions(arrayOf(android.Manifest.permission.WRITE_CALENDAR, android.Manifest.permission.READ_CALENDAR), 11)
+            return
+        }
+        Thread {
+            val ok = Cal.insert(applicationContext, title, begin, end)
+            runOnUiThread {
+                status.text = if (ok) "구글 캘린더에도 넣었어요 ✓" else "구글 캘린더 추가 실패 (캘린더 계정 확인)"
+            }
+            TrackerWidget.render(applicationContext)
+        }.start()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        val ev = pendingEvent ?: return
+        pendingEvent = null
+        if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            addToGcal(ev.first, ev.second, ev.third)
+        } else status.text = "캘린더 권한이 없어서 구글 캘린더엔 못 넣었어요"
+    }
+
     private fun save() {
         when (mode) {
             "sleep", "block" -> {
@@ -444,7 +502,16 @@ class QuickActivity : Activity() {
             "plan" -> {
                 val text = planEdit.text.toString()
                 val ops = JSONArray().put(Data.op("plan_set", day).put("h", planHour).put("text", text))
-                commit(if (text.isBlank()) "일정 지움" else "일정 저장", ops)
+                val toGcal = gcalCheck.isChecked && text.isNotBlank()
+                commit(if (text.isBlank()) "일정 지움" else if (toGcal) "일정 저장 + 구글 캘린더" else "일정 저장", ops)
+                if (toGcal) {
+                    val begin = Data.toCal(day).timeInMillis + planHour * 3600_000L + pm * 60_000L
+                    var end = Data.toCal(day).timeInMillis +
+                        (if (peH < Data.DAY_START) peH + 24 else peH) * 3600_000L + peM * 60_000L
+                    if (end <= begin) end = begin + 3600_000L
+                    addToGcal(text.trim(), begin, end)
+                    gcalCheck.isChecked = false
+                }
             }
             "todo" -> {
                 val text = todoEdit.text.toString().trim()
