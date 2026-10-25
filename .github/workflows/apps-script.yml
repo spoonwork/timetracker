@@ -6,6 +6,9 @@ on:
     paths: ['apps-script/**', '.github/workflows/apps-script.yml']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -20,6 +23,7 @@ jobs:
         env:
           CLASPRC: ${{ secrets.CLASPRC_JSON }}
         run: |
+          exec > >(tee /tmp/gs.log) 2>&1
           if [ -z "$CLASPRC" ]; then echo "CLASPRC_JSON secret is missing"; exit 1; fi
           npm i -g @google/clasp@2.4.2
           printf '%s' "$CLASPRC" > ~/.clasprc.json
@@ -34,3 +38,17 @@ jobs:
           grep -c "__SHEET_ID__" WebappAPI.js && exit 1 || true
           clasp push -f
           clasp deploy -i AKfycbzKAlhhA02RpnXPVrTLIDrfpQooM2OGlV4jQaNgzrG4tZav9ir84K8nxsr6saQVPT_d -d "auto ${{ github.run_number }}"
+
+      - name: Save log (on failure)
+        if: failure()
+        run: |
+          cp /tmp/gs.log /tmp/keep.log 2>/dev/null || echo "no log" > /tmp/keep.log
+          sed -i -E 's/(ya29|1\/\/)[A-Za-z0-9._-]+/[hidden]/g' /tmp/keep.log
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git checkout --orphan gs-log
+          git rm -rf --cached . > /dev/null
+          cp /tmp/keep.log gs.log
+          git add gs.log
+          git commit -m "gs log ${{ github.run_number }}"
+          git push -f origin gs-log
