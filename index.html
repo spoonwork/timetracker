@@ -419,7 +419,14 @@
     display: flex; align-items: flex-start; gap: 8px;
     padding: 5px 0; font-size: 13px;
   }
-  .memo-list .item.done span:not(.cb) { color: var(--text-muted); text-decoration: line-through; }
+  .memo-list .item.done span:not(.cb):not(.todo-del) { color: var(--text-muted); text-decoration: line-through; }
+  .todo-del {
+    margin-left: auto; padding: 0 4px; cursor: pointer;
+    color: var(--text-muted); opacity: 0.35; font-size: 12px; line-height: 18px;
+    transition: opacity .15s, color .15s;
+  }
+  .memo-list .item:hover .todo-del { opacity: 0.8; }
+  .todo-del:hover { color: #E85A5A; opacity: 1 !important; }
   .cb {
     display: inline-block; width: 14px; height: 14px;
     border: 1px solid var(--text);
@@ -1769,8 +1776,20 @@ function renderTodos() {
     <div class="item ${p.done ? 'done' : ''}">
       <span class="cb ${p.done ? 'checked' : ''}" data-idx="${i}"></span>
       <span>${escapeHtml(p.text)}</span>
+      <span class="todo-del" data-idx="${i}" title="삭제">✕</span>
     </div>
   `).join('');
+  el.querySelectorAll('.todo-del').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const i = parseInt(btn.dataset.idx);
+      if (typeof pushHistory === 'function') pushHistory();
+      list.splice(i, 1);
+      state.todos[ds] = list;
+      saveToLocal();
+      renderTodos();
+    };
+  });
   el.querySelectorAll('.cb').forEach(cb => {
     cb.onclick = () => {
       const i = parseInt(cb.dataset.idx);
