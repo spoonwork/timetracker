@@ -22,6 +22,7 @@ jobs:
       - name: Push and deploy
         env:
           CLASPRC: ${{ secrets.CLASPRC_JSON }}
+          WORKCAL_ID: ${{ secrets.WORKCAL_ID }}
         run: |
           exec > >(tee /tmp/gs.log) 2>&1
           if [ -z "$CLASPRC" ]; then echo "CLASPRC_JSON secret is missing"; exit 1; fi
@@ -34,13 +35,17 @@ jobs:
           # 지금 배포된 코드에서 시트 ID를 가져와 새 코드에 채움
           SHEET_ID=$(grep -oP "SPREADSHEET_ID = '\K[^'_][^']+" WebappAPI.js | head -1)
           if [ -z "$SHEET_ID" ]; then echo "sheet id not found"; exit 1; fi
-          sed "s/__SHEET_ID__/$SHEET_ID/" ../apps-script/WebappAPI.js > WebappAPI.js
+          sed "s/__SHEET_ID__/$SHEET_ID/; s/__WORKCAL_ID__/$WORKCAL_ID/" ../apps-script/WebappAPI.js > WebappAPI.js
           grep -c "__SHEET_ID__" WebappAPI.js && exit 1 || true
           clasp push -f
           clasp deploy -i AKfycbzKAlhhA02RpnXPVrTLIDrfpQooM2OGlV4jQaNgzrG4tZav9ir84K8nxsr6saQVPT_d -d "auto ${{ github.run_number }}"
+          # 작업캘린더 구조 확인 (날짜·색만) → 로그로 남김
+          sleep 5
+          curl -sL "https://script.google.com/macros/s/AKfycbzKAlhhA02RpnXPVrTLIDrfpQooM2OGlV4jQaNgzrG4tZav9ir84K8nxsr6saQVPT_d/exec?mode=workcal_debug&gid=1831203006" > /tmp/workcal.json || true
+          head -c 300 /tmp/workcal.json; echo
 
-      - name: Save log (on failure)
-        if: failure()
+      - name: Save log
+        if: always()
         run: |
           cp /tmp/gs.log /tmp/keep.log 2>/dev/null || echo "no log" > /tmp/keep.log
           sed -i -E 's/(ya29|1\/\/)[A-Za-z0-9._-]+/[hidden]/g' /tmp/keep.log
@@ -49,6 +54,7 @@ jobs:
           git checkout --orphan gs-log
           git rm -rf --cached . > /dev/null
           cp /tmp/keep.log gs.log
-          git add gs.log
+          cp /tmp/workcal.json workcal.json 2>/dev/null || true
+          git add gs.log workcal.json 2>/dev/null || git add gs.log
           git commit -m "gs log ${{ github.run_number }}"
           git push -f origin gs-log

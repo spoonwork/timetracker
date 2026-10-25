@@ -38,6 +38,11 @@ function doGet(e) {
     setupAppDataSheet();
     const ss = openSS();
 
+    // 작업캘린더 구조 확인용 (날짜·색만)
+    if (e && e.parameter && e.parameter.mode === 'workcal_debug') {
+      return makeJsonResponse(workCalDebug(e.parameter.gid));
+    }
+
     // ?mode=widget&date=YYYY-MM-DD → 폰 위젯용 요약
     if (e && e.parameter && e.parameter.mode === 'widget') {
       return makeJsonResponse(buildWidgetSummary(ss, e.parameter.date, e.parameter.from, e.parameter.to));
@@ -259,6 +264,28 @@ function buildWidgetSummary(ss, date, fromDs, toDs) {
     days: days,
     timestamp: new Date().toISOString(),
   };
+}
+
+// =============== 작업캘린더(스튜디오 시트) 날짜 색 ===============
+const WORKCAL_ID = '__WORKCAL_ID__';
+const DATE_CELL_RE = /^\s*(\d{1,2})\s*[.\/]\s*(\d{1,2})\s*\.?\s*$/;
+
+function workCalDebug(gid) {
+  const ss = SpreadsheetApp.openById(WORKCAL_ID);
+  const sheets = ss.getSheets().map(function (s) { return { name: s.getName(), gid: s.getSheetId(), rows: s.getLastRow(), cols: s.getLastColumn() }; });
+  const sh = ss.getSheets().filter(function (s) { return String(s.getSheetId()) === String(gid); })[0] || ss.getSheets()[0];
+  const nr = Math.min(sh.getLastRow(), 80), nc = Math.min(sh.getLastColumn(), 30);
+  const rng = sh.getRange(1, 1, nr, nc);
+  const disp = rng.getDisplayValues(), vals = rng.getValues(), bgs = rng.getBackgrounds();
+  const cells = [];
+  for (let r = 0; r < nr; r++) for (let c = 0; c < nc; c++) {
+    if (DATE_CELL_RE.test(disp[r][c]) || vals[r][c] instanceof Date) {
+      cells.push({ r: r + 1, c: c + 1, d: disp[r][c], isDate: vals[r][c] instanceof Date,
+        v: vals[r][c] instanceof Date ? Utilities.formatDate(vals[r][c], ss.getSpreadsheetTimeZone(), 'yyyy-MM-dd') : '',
+        bg: bgs[r][c], bgNext: c + 1 < nc ? bgs[r][c + 1] : '' });
+    }
+  }
+  return { ok: true, sheet: sh.getName(), sheets: sheets, cells: cells };
 }
 
 // =============== 폰 위젯에서 바로 고치기 (한 번에 처리) ===============
