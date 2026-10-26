@@ -25,7 +25,8 @@ object Art {
         val hour: Int = -1,     // 트래커 일정이면 시각
         val begin: Long = 0,
         val end2: Long = 0,
-        val sheet: Boolean = false  // 작업 스프레드 칸
+        val sheet: Boolean = false, // 작업 스프레드 칸
+        val done: Boolean = false   // 체크됨 → 줄 긋기
     )
 
     val PLAN_COLOR: Int = Color.parseColor("#5BB5A2")
@@ -74,8 +75,8 @@ object Art {
                     val text = w.optString("text")
                     if (text.isBlank() || text.startsWith("📅")) continue
                     val col = if (w.optBoolean("done")) Color.argb(120, 0xEA, 0x99, 0x99) else SHEET_BAR
-                    out.add(Item((if (w.optBoolean("done")) "✓" else "") + text, col, d, d,
-                        Data.toCal(d).timeInMillis + 1L + j, "", sheet = true))
+                    out.add(Item(text, col, d, d,
+                        Data.toCal(d).timeInMillis + 1L + j, "", sheet = true, done = w.optBoolean("done")))
                 }
                 val p = days.optJSONObject(d)?.optJSONObject("p")
                 if (p != null) {
@@ -106,7 +107,7 @@ object Art {
         return if (n <= 0) "" else s.substring(0, n) + "…"
     }
 
-    private fun pill(c: Canvas, p: Paint, r: RectF, color: Int, text: String, ts: Float, radius: Float) {
+    private fun pill(c: Canvas, p: Paint, r: RectF, color: Int, text: String, ts: Float, radius: Float, strike: Boolean = false) {
         p.style = Paint.Style.FILL
         p.color = color
         c.drawRoundRect(r, radius, radius, p)
@@ -116,7 +117,9 @@ object Art {
         p.typeface = Typeface.DEFAULT
         val pad = ts * 0.35f
         val t = fit(p, text, r.width() - pad * 2)
+        p.isStrikeThruText = strike
         c.drawText(t, r.left + pad, r.centerY() + ts * 0.36f, p)
+        p.isStrikeThruText = false
     }
 
     /** 시간 있는 일정: 삼성 캘린더처럼 왼쪽 색 바 + 글자 */
@@ -290,7 +293,7 @@ object Art {
                 var color = it.color
                 if (!inMonth(week[a]) && !inMonth(week[b])) color = Color.argb(110, Color.red(color), Color.green(color), Color.blue(color))
                 if (it.time.isNotEmpty() && a == b && !it.sheet) barItem(c, p, rect, color, it.title, 7.5f * u, u, main)
-                else pill(c, p, rect, color, it.title, 7.5f * u, 2.5f * u)
+                else pill(c, p, rect, color, it.title, 7.5f * u, 2.5f * u, it.done)
             }
             for (col in 0..6) {
                 if (hidden[col] > 0) {
@@ -405,7 +408,9 @@ object Art {
                 val bw = p.measureText(box)
                 p.color = if (d) sub else main
                 val shown = fit(p, t.optString("text"), half - x - bw - 12 * u)
+                p.isStrikeThruText = d          // 체크하면 줄 긋기
                 c.drawText(shown, x, y, p)
+                p.isStrikeThruText = false
                 val bx = x + p.measureText(shown) + 5 * u
                 p.color = SHEET_CHECK
                 c.drawText(box, bx, y, p)

@@ -176,6 +176,9 @@ class WidgetListService : RemoteViewsService() {
                     val rv = RemoteViews(ctx.packageName, R.layout.row_item)
                     rv.setTextColor(R.id.text, if (r.done) doneC else mainC)
                     rv.setTextViewText(R.id.text, r.text)
+                    // 스프레드 할 일은 체크하면 줄 긋기
+                    rv.setInt(R.id.text, "setPaintFlags", android.graphics.Paint.ANTI_ALIAS_FLAG or
+                        (if (r.work && r.done) android.graphics.Paint.STRIKE_THRU_TEXT_FLAG else 0))
                     rv.setTextViewText(R.id.lead, if (r.done) "☑" else "☐")
                     rv.setTextColor(R.id.lead, if (r.work) Art.SHEET_CHECK
                         else if (r.done) Color.parseColor("#10B981") else mainC)
