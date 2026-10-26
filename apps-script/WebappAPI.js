@@ -576,7 +576,7 @@ function paintRangeGs(mb, ds, s, e, cat) {
   mb[ds] = merged;
 }
 
-const WEBAPP_PATCH_KEYS = ['manualBlocks', 'todos', 'hourPlans', 'hourMarkers', 'hourChecks', 'hourAlign', 'see', 'workTypes', 'gcalWant'];
+const WEBAPP_PATCH_KEYS = ['manualBlocks', 'todos', 'hourPlans', 'hourMarkers', 'hourChecks', 'hourAlign', 'see', 'workTypes', 'gcalWant', 'stickies'];
 
 function applyWidgetOps(ss, appSheet, ops) {
   const lock = LockService.getScriptLock();
