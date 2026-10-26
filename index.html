@@ -924,7 +924,7 @@ var LUNAR_INFO = [
 
 const state = {
   view: 'daily',
-  date: new Date(),
+  date: new Date(Date.now() - 5 * 3600000),   // 새벽 5시 전이면 아직 '어제' (트래커 하루 기준)
   selectedCategory: null,
   isPainting: false,
   paintMode: 'add',
@@ -1016,7 +1016,7 @@ function bindUI() {
   document.getElementById('tab-monthly').onclick = () => switchView('monthly');
   document.getElementById('btn-prev').onclick = () => moveDate(-1);
   document.getElementById('btn-next').onclick = () => moveDate(1);
-  document.getElementById('btn-today').onclick = () => { state.date = new Date(); render(); };
+  document.getElementById('btn-today').onclick = () => { state.date = new Date(Date.now() - CONFIG.DAY_START_HOUR * 3600000); render(); };
   document.getElementById('btn-undo').onclick = () => undoLastAction();
   document.getElementById('btn-sync').onclick = () => syncFromSheets(true);
 
@@ -1878,30 +1878,50 @@ function mergeAdjacent() {
   saveToLocal();
 }
 
+// 구간 계산 도우미 (분 단위 [시작, 끝])
+function ivUnion(iv) {
+  const a = iv.filter(x => x[1] > x[0]).sort((p, q) => p[0] - q[0]);
+  const out = [];
+  a.forEach(x => {
+    const l = out[out.length - 1];
+    if (l && x[0] <= l[1]) l[1] = Math.max(l[1], x[1]); else out.push([x[0], x[1]]);
+  });
+  return out;
+}
+function ivLen(iv) { return ivUnion(iv).reduce((t, x) => t + (x[1] - x[0]), 0); }
+function ivMinus(iv, cut) {
+  // iv 에서 cut 과 겹치는 부분을 뺀 구간들
+  let out = ivUnion(iv);
+  ivUnion(cut).forEach(([c0, c1]) => {
+    const next = [];
+    out.forEach(([a0, a1]) => {
+      if (c1 <= a0 || c0 >= a1) { next.push([a0, a1]); return; }
+      if (a0 < c0) next.push([a0, c0]);
+      if (c1 < a1) next.push([c1, a1]);
+    });
+    out = next;
+  });
+  return out;
+}
+
+/** 하루 통계: 손으로 칠한 기록이 자동 기록보다 우선 (화면에 보이는 것과 같게, 겹치면 한 번만) */
 function calcDayStats(date) {
   const ds = fmtDate(date);
   const auto = state.autoLogs[ds] || [];
   const manual = state.manualBlocks[ds] || [];
+  const isWork = c => CONFIG.WORK_CATEGORIES.includes(c);
+  const isTax = c => CONFIG.TAX_CATEGORIES.includes(c);
+  const isDis = c => c === 'distraction' || c === 'distraction_comm';
 
-  let workMin = 0, taxMin = 0, distractMin = 0;
-  
-  auto.forEach(a => {
-    if (CONFIG.WORK_CATEGORIES.includes(a.category)) {
-      workMin += a.endMin - a.startMin;
-    } else if (CONFIG.TAX_CATEGORIES.includes(a.category)) {
-      taxMin += a.endMin - a.startMin;
-    } else if (a.category === 'distraction' || a.category === 'distraction_comm') {
-      distractMin += a.endMin - a.startMin;
-    }
-  });
+  const manualAll = manual.map(b => [b.startMin, b.endMin]);
+  const autoOf = (pred) => ivMinus(auto.filter(a => pred(a.category)).map(a => [a.startMin, a.endMin]), manualAll);
+  const manualOf = (pred) => manual.filter(b => pred(b.category)).map(b => [b.startMin, b.endMin]);
 
-  manual.forEach(b => {
-    if (CONFIG.WORK_CATEGORIES.includes(b.category)) {
-      workMin += b.endMin - b.startMin;
-    } else if (CONFIG.TAX_CATEGORIES.includes(b.category)) {
-      taxMin += b.endMin - b.startMin;
-    }
-  });
+  const autoWork = ivLen(autoOf(isWork));
+  const manualWork = ivLen(manualOf(isWork));
+  let workMin = Math.round(autoWork + manualWork);
+  const taxMin = Math.round(ivLen(autoOf(isTax)) + ivLen(manualOf(isTax)));
+  let distractMin = Math.round(ivLen(autoOf(isDis)));
 
   const sleepMin = calcSleepWindow(date);
 
@@ -1912,7 +1932,7 @@ function calcDayStats(date) {
     distractMin += Math.round(ff.idle / 60);
   }
 
-  return { workMin, taxMin, distractMin, sleepMin };
+  return { workMin, taxMin, distractMin, sleepMin, autoWork: Math.round(autoWork), manualWork: Math.round(manualWork) };
 }
 
 function renderStats() {
@@ -1945,6 +1965,12 @@ function renderStats() {
     const diff = Math.round(stats.workMin - avg);
     setSub('s-work-sub', `이번 주 평균 ${fmt(Math.round(avg))} · <b class="${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? '+' : '−'}${fmt(Math.abs(diff))}</b>`);
   } else setSub('s-work-sub', '');
+  // 집계 근거: 손으로 칠한 작업이 있으면 "PC 자동 + 손 기록"
+  if (stats.manualWork > 0) {
+    const el = document.getElementById('s-work-sub');
+    const why = `PC ${fmt(stats.autoWork)} + 손 기록 ${fmt(stats.manualWork)}`;
+    if (el) el.innerHTML = why + (el.innerHTML ? ' · ' + el.innerHTML : '');
+  }
 
   // 딴짓: 어디에 썼는지
   const auto = state.autoLogs[ds] || [];
@@ -2971,6 +2997,11 @@ function dedupeAutoLogs(byDate) {
   return byDate;
 }
 
+function shiftDs(ds, n) {
+  const [y, m, d] = ds.split('-').map(Number);
+  return fmtDate(new Date(y, m - 1, d + n));
+}
+
 function processLogsRows(rows) {
   if (!rows || rows.length < 2) return {};
   const byDate = {};
@@ -2998,20 +3029,23 @@ function processLogsRows(rows) {
 
     const label = shortenLabel(app, title);
 
-    if (!byDate[startParts.date]) byDate[startParts.date] = [];
-    const endGridMin = endParts.date === startParts.date ? endParts.gridMin : 1380;
-    const durSec = endParts.date === startParts.date
-      ? endParts.totalSec - startParts.totalSec
-      : (1380 - startParts.gridMin) * 60;
-    byDate[startParts.date].push({
-      startMin: startParts.gridMin,
-      endMin: endGridMin,
-      durationSec: Math.max(0, durSec),
-      category: displayCat,
-      label,
-      appName: app,
-      title,  // 원본 탭 제목
-    });
+    const seg = (date, sMin, eMin, dur) => {
+      if (!(eMin > sMin) && !(dur > 0)) return;
+      if (!byDate[date]) byDate[date] = [];
+      byDate[date].push({
+        startMin: sMin, endMin: eMin, durationSec: Math.max(0, dur),
+        category: displayCat, label, appName: app, title,  // 원본 탭 제목
+      });
+    };
+    if (endParts.date === startParts.date) {
+      seg(startParts.date, startParts.gridMin, endParts.gridMin, endParts.totalSec - startParts.totalSec);
+    } else if (endParts.date > startParts.date) {
+      // 새벽 5시(하루 경계)를 넘는 기록 → 전날 끝까지 / 다음 날 처음부터 나눠서
+      seg(startParts.date, startParts.gridMin, 1440, 1440 * 60 - startParts.totalSec);
+      let d = shiftDs(startParts.date, 1), guard = 0;
+      while (d < endParts.date && guard++ < 3) { seg(d, 0, 1440, 1440 * 60); d = shiftDs(d, 1); }
+      seg(endParts.date, 0, endParts.gridMin, endParts.totalSec);
+    }
   }
 
   const SHORT_THRESHOLD_SEC = 15;

@@ -208,7 +208,17 @@ function workByDay(ss, fromDs, toDs, todayDs, tz) {
           if (String(r[4]) !== 'work') continue;
           const en = toDateVal(r[1]);
           if (!en || en <= st) continue;
-          (acc[ds] = acc[ds] || []).push([st.getTime(), en.getTime()]);
+          // 새벽 5시(하루 경계)를 넘으면 다음 날 몫은 다음 날로
+          const hmS = Utilities.formatDate(new Date(st.getTime() - WIDGET_DAY_START * 3600000), tz, 'H:m:s').split(':');
+          const intoDay = (Number(hmS[0]) * 3600 + Number(hmS[1]) * 60 + Number(hmS[2])) * 1000;
+          const boundary = st.getTime() - intoDay + 24 * 3600000;
+          if (en.getTime() > boundary) {
+            (acc[ds] = acc[ds] || []).push([st.getTime(), boundary]);
+            const nd = shiftDate(ds, 1);
+            (acc[nd] = acc[nd] || []).push([boundary, en.getTime()]);
+          } else {
+            (acc[ds] = acc[ds] || []).push([st.getTime(), en.getTime()]);
+          }
         }
         end = start - 1;
       }
@@ -267,9 +277,15 @@ function logIntervals(ss, fromDs, toDs, tz) {
       }
       const hm = Utilities.formatDate(shifted, tz, 'H:m').split(':');
       const s0 = Number(hm[0]) * 60 + Number(hm[1]);
-      const e0 = Math.min(1440, s0 + Math.round((en.getTime() - st.getTime()) / 60000));
+      const full = s0 + Math.round((en.getTime() - st.getTime()) / 60000);
+      const e0 = Math.min(1440, full);
       if (e0 <= s0) continue;
-      (out[ds] = out[ds] || []).push([s0, e0, label]);
+      const isW = cat === 'work' ? 1 : 0;
+      (out[ds] = out[ds] || []).push([s0, e0, label, isW]);
+      if (full > 1440) {   // 5시를 넘은 부분은 다음 날 처음에
+        const nd = shiftDate(ds, 1);
+        (out[nd] = out[nd] || []).push([0, Math.min(1440, full - 1440), label, isW]);
+      }
     }
     end = start - 1;
   }
@@ -448,6 +464,36 @@ function applyWorkOp(wb, o) {
   }
 }
 
+// 웹 트래커와 같은 작업 분류 (손으로 칠한 기록)
+const WIDGET_WORK_CATS = ['작업', '텀블벅', '인보이스', '나스', '그림', '3D', '3D배경', 'AI', '코딩', '문서', 'XLS', 'HWP', 'Word', 'EV', '카톡'];
+
+function ivUnionGs(iv) {
+  const a = iv.filter(function (x) { return x[1] > x[0]; }).sort(function (p, q) { return p[0] - q[0]; });
+  const out = [];
+  a.forEach(function (x) {
+    const l = out[out.length - 1];
+    if (l && x[0] <= l[1]) l[1] = Math.max(l[1], x[1]); else out.push([x[0], x[1]]);
+  });
+  return out;
+}
+function ivLenGs(iv) { return ivUnionGs(iv).reduce(function (t, x) { return t + x[1] - x[0]; }, 0); }
+function ivOverlapGs(a, b) {
+  const A = ivUnionGs(a), B = ivUnionGs(b);
+  let t = 0;
+  A.forEach(function (x) { B.forEach(function (y) { t += Math.max(0, Math.min(x[1], y[1]) - Math.max(x[0], y[0])); }); });
+  return t;
+}
+/** 작업시간 = 자동 작업 + 손으로 칠한 작업 (겹친 시간은 한 번만, 손 기록이 우선) — 웹 트래커와 같은 규칙 */
+function adjustWork(autoSec, blocks, iv) {
+  if (!blocks.length) return autoSec;
+  const manualAll = blocks.map(function (b) { return [b.startMin, b.endMin]; });
+  const manualWork = ivLenGs(blocks.filter(function (b) { return WIDGET_WORK_CATS.indexOf(b.category) >= 0; })
+    .map(function (b) { return [b.startMin, b.endMin]; }));
+  let overlap = 0;
+  if (iv) overlap = ivOverlapGs(iv.filter(function (x) { return x[3]; }).map(function (x) { return [x[0], x[1]]; }), manualAll);
+  return Math.max(0, Math.round(autoSec - overlap * 60 + manualWork * 60));
+}
+
 function buildWidgetSummary(ss, date, fromDs, toDs, fresh) {
   const tz = ss.getSpreadsheetTimeZone();
   const todayDs = Utilities.formatDate(new Date(Date.now() - WIDGET_DAY_START * 3600 * 1000), tz, 'yyyy-MM-dd');
@@ -467,12 +513,18 @@ function buildWidgetSummary(ss, date, fromDs, toDs, fresh) {
     if (d >= fromDs && d <= toDs && td[d] > 0) work[d] = td[d];
   });
   // 막대에 칠할 PC 기록: 최근 일주일만 (가볍게)
-  const ivFrom = fromDs > shiftDate(todayDs, -7) ? fromDs : shiftDate(todayDs, -7);
+  let ivFrom = fromDs > shiftDate(todayDs, -7) ? fromDs : shiftDate(todayDs, -7);
+  // 손으로 칠한 '작업'이 있는 날은 자동 기록과 겹친 시간을 빼야 해서 그 날 기록 구간도 읽음 (최근 45일까지)
+  const oldest = shiftDate(todayDs, -45);
+  for (let d = fromDs; d < ivFrom; d = shiftDate(d, 1)) {
+    if (d >= oldest && (mb[d] || []).some(function (b) { return WIDGET_WORK_CATS.indexOf(b.category) >= 0; })) { ivFrom = d; break; }
+  }
   const ivs = ivFrom <= todayDs ? logIntervals(ss, ivFrom, toDs < todayDs ? toDs : todayDs, tz) : {};
   const days = {};
   for (let d = fromDs; d <= toDs; d = shiftDate(d, 1)) {
     const item = {};
-    if (work[d]) item.w = work[d];
+    const wsec = adjustWork(work[d] || 0, mb[d] || [], ivs[d]);
+    if (wsec) item.w = wsec;
     const sl = sleepForDay(mb, d);
     if (sl) item.s = sl;
     if (hp[d] && Object.keys(hp[d]).length) item.p = hp[d];
@@ -491,7 +543,7 @@ function buildWidgetSummary(ss, date, fromDs, toDs, fresh) {
   return {
     ok: true,
     date: date,
-    workSec: work[date] || 0,
+    workSec: adjustWork(work[date] || 0, mb[date] || [], ivs[date]),
     sleepMin: sleepForDay(mb, date),
     blocks: mb[date] || [],
     plans: hp[date] || {},
