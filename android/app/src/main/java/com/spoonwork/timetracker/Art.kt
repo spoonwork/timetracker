@@ -127,13 +127,14 @@ object Art {
         p.style = Paint.Style.FILL
         p.color = color
         val bw = 1.6f * u
-        c.drawRoundRect(RectF(r.left + 0.5f * u, r.top + 0.6f * u, r.left + 0.5f * u + bw, r.bottom - 0.6f * u), bw / 2, bw / 2, p)
+        val bx = r.left + 2.5f * u          // 칸 안쪽으로 (옆 칸 일정과 안 붙게)
+        c.drawRoundRect(RectF(bx, r.top + 0.8f * u, bx + bw, r.bottom - 0.8f * u), bw / 2, bw / 2, p)
         p.color = textColor
         if (Color.alpha(color) < 200) p.alpha = 140
         p.textSize = ts
         p.textAlign = Paint.Align.LEFT
         p.typeface = Typeface.DEFAULT
-        val x = r.left + bw + 2.2f * u
+        val x = bx + bw + 1.6f * u
         c.drawText(fit(p, text, r.right - x), x, r.centerY() + ts * 0.36f, p)
         p.alpha = 255
     }
@@ -208,9 +209,9 @@ object Art {
         val ch = (Hc - hh) / rows
         val maxW = workMax(days, cells.filter { inMonth(it) })
         val items = items(days, events, cells.first(), cells.last())
-        val laneTop = 28 * u
+        val laneTop = 25 * u                     // 일정은 날짜 바로 아래부터
         val dayColors = cache?.optJSONObject("dayColors")
-        val laneH = 11.5f * u
+        val laneH = 13.5f * u * fs               // 일정 글자도 글자 크기 설정을 따름
         val maxLanes = maxOf(0, ((ch - laneTop - 2 * u) / laneH).toInt())
 
         for (r in 0 until rows) {
@@ -252,20 +253,25 @@ object Art {
                 p.textSize = 6.5f * u * fs
                 p.textAlign = Paint.Align.LEFT
                 p.color = if (cur) sub else faint
-                c.drawText(Cal.ganji(ds), cx + 4.5f * u, y + 16 * u, p)
+                // 음력: 삼성 캘린더처럼 일요일과 오늘만 (일진 아래에 작게)
+                if (i == 0 || ds == todayDs) {
+                    c.drawText(Cal.ganji(ds), cx + 4.5f * u, y + 11 * u, p)
+                    p.textSize = 5.5f * u * fs
+                    c.drawText(Cal.lunar(ds), cx + 4.5f * u, y + 17.5f * u, p)
+                } else c.drawText(Cal.ganji(ds), cx + 4.5f * u, y + 16 * u, p)
                 // 작업 막대 + 수면 막대
                 val day = days?.optJSONObject(ds)
                 val w = day?.optInt("w") ?: 0
                 if (w > 0 && cur) {
                     p.color = WORK
                     val len = (cw - 6 * u) * minOf(1f, w.toFloat() / maxW)
-                    c.drawRoundRect(RectF(x + 3 * u, y + 21 * u, x + 3 * u + maxOf(len, 2 * u), y + 23.5f * u), u, u, p)
+                    c.drawRoundRect(RectF(x + 3 * u, y + 19.5f * u, x + 3 * u + maxOf(len, 2 * u), y + 21.5f * u), u, u, p)
                 }
                 val s = day?.optInt("s") ?: 0
                 if (s > 0 && cur) {
                     p.color = Data.color("수면")
                     val len = (cw - 6 * u) * minOf(1f, s / 600f)
-                    c.drawRoundRect(RectF(x + 3 * u, y + 24.5f * u, x + 3 * u + len, y + 26 * u), u, u, p)
+                    c.drawRoundRect(RectF(x + 3 * u, y + 22.2f * u, x + 3 * u + len, y + 23.4f * u), u, u, p)
                 }
             }
 
@@ -292,8 +298,9 @@ object Art {
                 val rect = RectF(cw * a + 1.5f * u, top, cw * (b + 1) - 1.5f * u, top + laneH - 1.5f * u)
                 var color = it.color
                 if (!inMonth(week[a]) && !inMonth(week[b])) color = Color.argb(110, Color.red(color), Color.green(color), Color.blue(color))
-                if (it.time.isNotEmpty() && a == b && !it.sheet) barItem(c, p, rect, color, it.title, 7.5f * u, u, main)
-                else pill(c, p, rect, color, it.title, 7.5f * u, 2.5f * u, it.done)
+                val ts = 9f * u * fs
+                if (it.time.isNotEmpty() && a == b && !it.sheet) barItem(c, p, rect, color, it.title, ts, u, main)
+                else pill(c, p, rect, color, it.title, ts, 2.5f * u, it.done)
             }
             for (col in 0..6) {
                 if (hidden[col] > 0) {

@@ -211,6 +211,13 @@ object Cal {
     private val GAN = arrayOf("甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸")
     private val JI = arrayOf("子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥")
 
+    /** 음력 "9.17" (폰 안의 음력 달력으로 계산, 인터넷 안 씀). 윤달은 "윤" 붙임 */
+    fun lunar(ds: String): String = try {
+        val cc = android.icu.util.ChineseCalendar(java.util.Date(Data.toCal(ds).timeInMillis + 12 * 3600_000L))   // 정오로 (중국 시간대 차이로 하루 밀리지 않게)
+        val leap = cc.get(android.icu.util.ChineseCalendar.IS_LEAP_MONTH) == 1
+        (if (leap) "윤" else "") + "${cc.get(android.icu.util.Calendar.MONTH) + 1}.${cc.get(android.icu.util.Calendar.DAY_OF_MONTH)}"
+    } catch (_: Throwable) { "" }
+
     fun ganji(ds: String): String {
         val base = Calendar.getInstance().apply { clear(); set(1900, 1, 20, 12, 0, 0) }
         val t = Data.toCal(ds).apply { set(Calendar.HOUR_OF_DAY, 12) }
