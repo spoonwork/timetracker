@@ -210,7 +210,7 @@ object Art {
         val ch = (Hc - hh) / rows
         val maxW = workMax(days, cells.filter { inMonth(it) })
         val items = items(days, events, cells.first(), cells.last())
-        val laneTop = 25 * u                     // 일정은 날짜 바로 아래부터
+        val laneTop = 23 * u                     // 일정은 날짜 바로 아래부터
         val dayColors = cache?.optJSONObject("dayColors")
         val laneH = 13.5f * u * fs               // 일정 글자도 글자 크기 설정을 따름
         val maxLanes = maxOf(0, ((ch - laneTop - 2 * u) / laneH).toInt())
@@ -265,16 +265,11 @@ object Art {
                 // 작업 막대 + 수면 막대
                 val day = days?.optJSONObject(ds)
                 val w = day?.optInt("w") ?: 0
-                if (w > 0 && cur) {
-                    p.color = WORK
-                    val len = (cw - 6 * u) * minOf(1f, w.toFloat() / maxW)
-                    c.drawRoundRect(RectF(x + 3 * u, y + 19.5f * u, x + 3 * u + maxOf(len, 2 * u), y + 21.5f * u), u, u, p)
-                }
                 val s = day?.optInt("s") ?: 0
                 if (s > 0 && cur) {
                     p.color = Data.color("수면")
                     val len = (cw - 6 * u) * minOf(1f, s / 600f)
-                    c.drawRoundRect(RectF(x + 3 * u, y + 22.2f * u, x + 3 * u + len, y + 23.4f * u), u, u, p)
+                    c.drawRoundRect(RectF(x + 3 * u, y + 20 * u, x + 3 * u + len, y + 21.2f * u), u, u, p)
                 }
             }
 
