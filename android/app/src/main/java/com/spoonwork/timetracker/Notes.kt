@@ -287,7 +287,7 @@ class NoteEditActivity : Activity() {
                 AlertDialog.Builder(this@NoteEditActivity).setMessage("이 메모를 지울까요?")
                     .setPositiveButton("지우기") { _, _ ->
                         deleted = true
-                        if (!isNew) Notes.send(this@NoteEditActivity, JSONArray().put(Notes.patch(id, null, null)))
+                        if (!isNew) Notes.send(this@NoteEditActivity, JSONArray().put(Notes.patch(this@NoteEditActivity.id, null, null)))
                         finish()
                     }.setNegativeButton("취소", null).show()
             }
