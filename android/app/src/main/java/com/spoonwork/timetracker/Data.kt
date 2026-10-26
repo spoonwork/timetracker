@@ -315,6 +315,23 @@ object Data {
     }
 
     /** 칠하기 → ops (새벽 5시 넘어가면 다음 날로 나눔) */
+    /** 수면: 'ds 밤'에 자서 다음 날 아침에 깸. 18시~새벽 5시 = 그날 밤, 5시~18시 = 다음 날 아침 */
+    fun sleepOps(ds: String, sh: Int, sm: Int, eh: Int, em: Int): JSONArray {
+        fun abs(h: Int, m: Int): Int = toGrid(h, m) + if (h in DAY_START until 18) DAY_MIN else 0
+        val s = abs(sh, sm)
+        var e = abs(eh, em)
+        if (e <= s) e += DAY_MIN
+        val ops = JSONArray()
+        var a = s
+        while (a < e) {
+            val dayIdx = a / DAY_MIN
+            val b = minOf(e, (dayIdx + 1) * DAY_MIN)
+            ops.put(op("paint", shift(ds, dayIdx)).put("s", a - dayIdx * DAY_MIN).put("e", b - dayIdx * DAY_MIN).put("cat", "수면"))
+            a = b
+        }
+        return ops
+    }
+
     fun paintOps(ds: String, sh: Int, sm: Int, eh: Int, em: Int, cat: String): JSONArray {
         val s = toGrid(sh, sm)
         val e = toGrid(eh, em)

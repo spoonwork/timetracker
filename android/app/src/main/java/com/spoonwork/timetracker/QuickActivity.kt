@@ -26,6 +26,7 @@ import java.util.Locale
 /** 위젯 위에 뜨는 작은 입력창: 수면 / 기록 / 일정 / 할 일 */
 class QuickActivity : Activity() {
 
+    private var hintLbl: TextView? = null
     private var mode = "block"            // sleep, block, plan, todo
     private var cat = "작업"
     private var day = Data.trackerDay()
@@ -181,7 +182,7 @@ class QuickActivity : Activity() {
             addView(endBtn, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         }
         paneBlock.addView(row("시간", times))
-        paneBlock.addView(label("새벽 5시 전 시각은 그 날짜의 밤으로 들어가요", 11f).apply {
+        paneBlock.addView(label("새벽 5시 전 시각은 그 날짜의 밤으로 들어가요", 11f).also { hintLbl = it }.apply {
             setPadding(dp(52), 0, 0, 0)
         })
         root.addView(paneBlock)
@@ -365,6 +366,8 @@ class QuickActivity : Activity() {
             v.setTextColor(if (on) Color.WHITE else textMuted)
         }
         dateBtn.text = Data.prettyDay(day) + if (mode == "sleep") "  밤" else ""
+        hintLbl?.text = if (mode == "sleep") "이날 밤에 잔 시각 ~ 다음 날 아침에 깬 시각 (아침은 다음 날로 칠해져요)"
+            else "새벽 5시 전 시각은 그 날짜의 밤으로 들어가요"
         val blockLike = mode == "sleep" || mode == "block"
         paneBlock.visibility = if (blockLike) View.VISIBLE else View.GONE
         panePlan.visibility = if (mode == "plan") View.VISIBLE else View.GONE
@@ -586,7 +589,7 @@ class QuickActivity : Activity() {
                 } else p.putString("last_cat", cat)
                 p.apply()
                 val msg = String.format(Locale.US, "%s %02d:%02d~%02d:%02d 저장", cat, sh, sm, eh, em)
-                commit(msg, Data.paintOps(day, sh, sm, eh, em, cat))
+                commit(msg, if (mode == "sleep") Data.sleepOps(day, sh, sm, eh, em) else Data.paintOps(day, sh, sm, eh, em, cat))
             }
             "plan" -> {
                 val text = planEdit.text.toString().trim()
