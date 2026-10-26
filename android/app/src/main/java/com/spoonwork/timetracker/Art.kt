@@ -119,6 +119,22 @@ object Art {
         c.drawText(t, r.left + pad, r.centerY() + ts * 0.36f, p)
     }
 
+    /** 시간 있는 일정: 삼성 캘린더처럼 왼쪽 색 바 + 글자 */
+    private fun barItem(c: Canvas, p: Paint, r: RectF, color: Int, text: String, ts: Float, u: Float, textColor: Int) {
+        p.style = Paint.Style.FILL
+        p.color = color
+        val bw = 1.6f * u
+        c.drawRoundRect(RectF(r.left + 0.5f * u, r.top + 0.6f * u, r.left + 0.5f * u + bw, r.bottom - 0.6f * u), bw / 2, bw / 2, p)
+        p.color = textColor
+        if (Color.alpha(color) < 200) p.alpha = 140
+        p.textSize = ts
+        p.textAlign = Paint.Align.LEFT
+        p.typeface = Typeface.DEFAULT
+        val x = r.left + bw + 2.2f * u
+        c.drawText(fit(p, text, r.right - x), x, r.centerY() + ts * 0.36f, p)
+        p.alpha = 255
+    }
+
     /** 같은 색이 이어지는 날은 한 줄로 이어서 그림 */
     private fun colorRuns(c: Canvas, p: Paint, dayColors: JSONObject?, days: List<String>,
                           cw: Float, top: Float, bottom: Float, u: Float, dim: (String) -> Boolean) {
@@ -273,7 +289,8 @@ object Art {
                 val rect = RectF(cw * a + 1.5f * u, top, cw * (b + 1) - 1.5f * u, top + laneH - 1.5f * u)
                 var color = it.color
                 if (!inMonth(week[a]) && !inMonth(week[b])) color = Color.argb(110, Color.red(color), Color.green(color), Color.blue(color))
-                pill(c, p, rect, color, it.title, 7.5f * u, 2.5f * u)
+                if (it.time.isNotEmpty() && a == b && !it.sheet) barItem(c, p, rect, color, it.title, 7.5f * u, u, main)
+                else pill(c, p, rect, color, it.title, 7.5f * u, 2.5f * u)
             }
             for (col in 0..6) {
                 if (hidden[col] > 0) {
