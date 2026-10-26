@@ -29,6 +29,10 @@ import org.json.JSONObject
 class UBold : StyleSpan(Typeface.BOLD)
 class UStrike : android.text.style.StrikethroughSpan()
 class UHigh : android.text.style.BackgroundColorSpan(Color.parseColor("#FFE066"))
+class UItalic : StyleSpan(Typeface.ITALIC)
+class UUnder : android.text.style.UnderlineSpan()
+class UFore(val hex: String) : android.text.style.ForegroundColorSpan(Color.parseColor(hex))
+class UBack(val hex: String) : android.text.style.BackgroundColorSpan(Color.parseColor(hex))
 
 /** 스티커 메모 (PC 스티커와 같은 시트 'stickies') */
 object Notes {
@@ -324,26 +328,49 @@ class NoteEditActivity : Activity() {
             }
         })
         root.addView(bar)
-        // 서식: 굵게 / 취소선 / 형광펜 (글자 고르고 누르기) · 글자 크기
+        // 서식 막대 (PC 스티커와 같은 아이콘): 크기 − 11 + | B I U S | 글자색 | 배경색 | 지우기
         val fbar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), 0, dp(14), dp(4))
+            setPadding(dp(10), 0, dp(10), dp(4))
         }
+        val ink = Color.parseColor("#374151")
         fun fbtn(label: String, style: (TextView) -> Unit = {}, onClick: () -> Unit) = TextView(this).apply {
-            text = label; textSize = 16f; gravity = Gravity.CENTER
-            setTextColor(Color.parseColor("#374151"))
-            background = GradientDrawable().apply { cornerRadius = dp(8).toFloat(); setColor(Color.parseColor("#14000000")) }
-            setPadding(dp(12), dp(5), dp(12), dp(5))
+            text = label; textSize = 17f; gravity = Gravity.CENTER
+            setTextColor(ink)
+            setPadding(dp(10), dp(4), dp(10), dp(4))
             style(this)
             setOnClickListener { onClick() }
-        }.also { fbar.addView(it, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) }) }
-        fbtn("B", { it.setTypeface(it.typeface, Typeface.BOLD) }) { toggleSpan { UBold() } }
+        }.also { fbar.addView(it) }
+        fun sep() = fbar.addView(View(this).apply { setBackgroundColor(Color.parseColor("#22000000")) },
+            LinearLayout.LayoutParams(dp(1), dp(18)).apply { marginStart = dp(4); marginEnd = dp(4) })
+        lateinit var sizeLbl: TextView
+        fbtn("−") { fs = maxOf(8, fs - 1); applyFs(); sizeLbl.text = fs.toString() }
+        sizeLbl = fbtn(fs.toString(), { it.textSize = 13f; it.setPadding(dp(2), 0, dp(2), 0) }) {}
+        fbtn("+") { fs = minOf(28, fs + 1); applyFs(); sizeLbl.text = fs.toString() }
+        sep()
+        fbtn("B", { it.setTypeface(Typeface.DEFAULT, Typeface.BOLD) }) { toggleSpan { UBold() } }
+        fbtn("I", { it.setTypeface(Typeface.SERIF, Typeface.ITALIC) }) { toggleSpan { UItalic() } }
+        fbtn("U", { it.paintFlags = it.paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG }) { toggleSpan { UUnder() } }
         fbtn("S", { it.paintFlags = it.paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG }) { toggleSpan { UStrike() } }
-        fbtn("형광", { it.setBackgroundColor(Color.parseColor("#FFE066")) }) { toggleSpan { UHigh() } }
-        fbar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        fbtn("A−") { fs = maxOf(8, fs - 1); applyFs() }
-        fbtn("A+") { fs = minOf(28, fs + 1); applyFs() }
-        root.addView(fbar)
+        sep()
+        fbtn("T▾", { t ->
+            t.setTypeface(Typeface.SERIF)
+            val sp = android.text.SpannableString("T▾")
+            sp.setSpan(android.text.style.UnderlineSpan(), 0, 1, 0)
+            sp.setSpan(android.text.style.ForegroundColorSpan(Color.parseColor("#E5484D")), 0, 1, 0)
+            t.text = sp
+        }) { pickColor(false) }
+        fbtn("T▾", { t ->
+            t.setTypeface(Typeface.SERIF)
+            val sp = android.text.SpannableString("T▾")
+            sp.setSpan(android.text.style.BackgroundColorSpan(Color.parseColor("#FFE066")), 0, 1, 0)
+            t.text = sp
+        }) { pickColor(true) }
+        sep()
+        fbtn("⌫", { it.textSize = 15f }) { clearSel() }
+        val hs = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        hs.addView(fbar)
+        root.addView(hs)
 
         edit = EditText(this).apply {
             setText(original)
@@ -393,7 +420,7 @@ class NoteEditActivity : Activity() {
     /** 첫 줄 굵고 크게 */
     private fun styleTitle(s: Editable?) {
         s ?: return
-        s.getSpans(0, s.length, StyleSpan::class.java).filter { it !is UBold }.forEach { s.removeSpan(it) }
+        s.getSpans(0, s.length, StyleSpan::class.java).filter { it !is UBold && it !is UItalic }.forEach { s.removeSpan(it) }
         s.getSpans(0, s.length, RelativeSizeSpan::class.java).forEach { s.removeSpan(it) }
         val end = s.indexOf('\n').let { if (it < 0) s.length else it }
         if (end > 0) {
@@ -421,7 +448,16 @@ class NoteEditActivity : Activity() {
             val r = arr.optJSONArray(i) ?: continue
             val a = fromCp(str, r.optInt(0)); val b = fromCp(str, r.optInt(1))
             if (b <= a) continue
-            val span: Any = when (r.optString(2)) { "b" -> UBold(); "s" -> UStrike(); "h" -> UHigh(); else -> continue }
+            val t = r.optString(2)
+            val span: Any = try {
+                when {
+                    t == "b" -> UBold(); t == "s" -> UStrike(); t == "h" -> UHigh()
+                    t == "i" -> UItalic(); t == "u" -> UUnder()
+                    t.startsWith("fc#") -> UFore(t.substring(2))
+                    t.startsWith("hc#") -> UBack(t.substring(2))
+                    else -> continue
+                }
+            } catch (ex: Exception) { continue }
             e.setSpan(span, a, b, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
     }
@@ -429,12 +465,16 @@ class NoteEditActivity : Activity() {
     private fun collectFmt(): JSONArray {
         val e = edit.text; val str = e.toString()
         val out = JSONArray()
-        for ((cls, t) in listOf(UBold::class.java to "b", UStrike::class.java to "s", UHigh::class.java to "h")) {
-            e.getSpans(0, e.length, cls).sortedBy { e.getSpanStart(it) }.forEach {
-                val a = e.getSpanStart(it); val b = e.getSpanEnd(it)
-                if (b > a) out.put(JSONArray().put(toCp(str, a)).put(toCp(str, b)).put(t))
-            }
-        }
+        val all = e.getSpans(0, e.length, Any::class.java).mapNotNull { sp ->
+            val t = when (sp) {
+                is UBold -> "b"; is UStrike -> "s"; is UHigh -> "h"; is UItalic -> "i"; is UUnder -> "u"
+                is UFore -> "fc" + sp.hex; is UBack -> "hc" + sp.hex
+                else -> null
+            } ?: return@mapNotNull null
+            val a = e.getSpanStart(sp); val b = e.getSpanEnd(sp)
+            if (b > a) Triple(toCp(str, a), toCp(str, b), t) else null
+        }.sortedWith(compareBy({ it.first }, { it.second }, { it.third }))
+        all.forEach { out.put(JSONArray().put(it.first).put(it.second).put(it.third)) }
         return out
     }
 
@@ -454,6 +494,58 @@ class NoteEditActivity : Activity() {
             if (e0 > b) e.setSpan(make(), b, e0, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
         if (!covered) e.setSpan(make(), a, b, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+    }
+
+    private fun selRange(): Pair<Int, Int>? {
+        val a = minOf(edit.selectionStart, edit.selectionEnd); val b = maxOf(edit.selectionStart, edit.selectionEnd)
+        if (a < 0 || b <= a) { Toast.makeText(this, "글자를 먼저 골라주세요", Toast.LENGTH_SHORT).show(); return null }
+        return a to b
+    }
+
+    /** 고른 부분의 같은 종류 span 을 잘라내기 */
+    private fun cutSpans(a: Int, b: Int, match: (Any) -> Boolean, remake: (Any) -> Any) {
+        val e = edit.text
+        e.getSpans(a, b, Any::class.java).filter(match).filter { e.getSpanStart(it) < b && e.getSpanEnd(it) > a }.forEach {
+            val s0 = e.getSpanStart(it); val e0 = e.getSpanEnd(it)
+            e.removeSpan(it)
+            if (s0 < a) e.setSpan(remake(it), s0, a, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            if (e0 > b) e.setSpan(remake(it), b, e0, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
+
+    private fun copyOf(sp: Any): Any = when (sp) {
+        is UFore -> UFore(sp.hex); is UBack -> UBack(sp.hex); is UHigh -> UHigh(); is UBold -> UBold()
+        is UItalic -> UItalic(); is UUnder -> UUnder(); is UStrike -> UStrike(); else -> sp
+    }
+
+    private val TEXT_COLORS = listOf("#E5484D", "#F97316", "#D4A017", "#16A34A", "#2563EB", "#7C3AED", "#DB2777", "#6B7280")
+    private val HIGH_COLORS = listOf("#FFE066", "#FFD6A5", "#CAFFBF", "#A0E7FF", "#E0C3FC", "#FFC6D9")
+
+    /** 글자색(false) / 배경색(true) 고르기 */
+    private fun pickColor(back: Boolean) {
+        val (a, b) = selRange() ?: return
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(16), dp(20), dp(8)) }
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
+        box.addView(row)
+        val dlg = AlertDialog.Builder(this).setTitle(if (back) "배경색" else "글자색").setView(box)
+            .setNegativeButton("색 없애기") { _, _ -> applyColor(a, b, back, null) }.create()
+        for (c in if (back) HIGH_COLORS else TEXT_COLORS) {
+            row.addView(View(this).apply {
+                background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(Color.parseColor(c)); setStroke(dp(1), Color.parseColor("#22000000")) }
+                setOnClickListener { applyColor(a, b, back, c); dlg.dismiss() }
+            }, LinearLayout.LayoutParams(dp(30), dp(30)).apply { marginEnd = dp(8) })
+        }
+        dlg.show()
+    }
+
+    private fun applyColor(a: Int, b: Int, back: Boolean, hex: String?) {
+        cutSpans(a, b, { if (back) (it is UBack || it is UHigh) else it is UFore }, ::copyOf)
+        if (hex != null) edit.text.setSpan(if (back) UBack(hex) else UFore(hex), a, b, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+    }
+
+    private fun clearSel() {
+        val (a, b) = selRange() ?: return
+        cutSpans(a, b, { it is UBold || it is UItalic || it is UUnder || it is UStrike || it is UHigh || it is UFore || it is UBack }, ::copyOf)
     }
 
     private fun paint() {
