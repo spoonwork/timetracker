@@ -25,6 +25,11 @@ import android.widget.Toast
 import org.json.JSONArray
 import org.json.JSONObject
 
+/** 사용자가 넣은 서식 (제목 굵게와 구분) */
+class UBold : StyleSpan(Typeface.BOLD)
+class UStrike : android.text.style.StrikethroughSpan()
+class UHigh : android.text.style.BackgroundColorSpan(Color.parseColor("#FFE066"))
+
 /** 스티커 메모 (PC 스티커와 같은 시트 'stickies') */
 object Notes {
     // 키 → (이름, 바탕색, 머리줄색) — PC sticky.py 와 같음
@@ -179,7 +184,8 @@ class NotesActivity : Activity() {
         val q = search.text.toString().trim()
         val list = all.keys().asSequence().mapNotNull { k -> all.optJSONObject(k)?.let { k to it } }
             .filter { q.isEmpty() || it.second.optString("text").contains(q, ignoreCase = true) }
-            .sortedByDescending { it.second.optLong("updated", it.second.optLong("created", 0)) }
+            .sortedWith(compareByDescending<Pair<String, JSONObject>> { it.second.optBoolean("fav") }
+                .thenByDescending { it.second.optLong("updated", it.second.optLong("created", 0)) })
             .toList()
         if (list.isEmpty()) {
             colL.addView(TextView(this).apply {
@@ -214,6 +220,16 @@ class NotesActivity : Activity() {
             textSize = 15f; setTextColor(main); setTypeface(typeface, Typeface.BOLD)
             maxLines = 2; ellipsize = TextUtils.TruncateAt.END
         }, LinearLayout.LayoutParams(0, -2, 1f))
+        val fav = n.optBoolean("fav")
+        head.addView(TextView(this).apply {
+            this.text = if (fav) "★" else "☆"
+            textSize = 17f; setTextColor(if (fav) Color.parseColor("#C98A00") else Color.parseColor("#9CA3AF"))
+            setPadding(dp(8), 0, dp(2), 0)
+            setOnClickListener {
+                Notes.send(this@NotesActivity, JSONArray().put(Notes.patch(id, "fav", !fav)))
+                show(Notes.cache(this@NotesActivity))
+            }
+        })
         // 접기 ▾ / 펴기 ▸ (PC 스티커와 같이 움직임)
         head.addView(TextView(this).apply {
             this.text = if (folded) "▸" else "▾"
@@ -251,6 +267,12 @@ class NoteEditActivity : Activity() {
     private lateinit var root: LinearLayout
     private var original = ""
     private var originalColor = "yellow"
+    private var fav = false
+    private var origFav = false
+    private var fs = 11
+    private var origFs = 11
+    private var origFmt = "[]"
+    private lateinit var favBtn: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -261,6 +283,9 @@ class NoteEditActivity : Activity() {
         color = n?.optString("color")?.ifEmpty { "yellow" } ?: Data.prefs(this).getString("note_color", "yellow")!!
         original = n?.optString("text") ?: ""
         originalColor = color
+        fav = n?.optBoolean("fav") ?: false; origFav = fav
+        fs = n?.optInt("fs", 11)?.takeIf { it > 0 } ?: 11; origFs = fs
+        origFmt = (n?.optJSONArray("fmt") ?: JSONArray()).toString()
 
         root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val bar = LinearLayout(this).apply {
@@ -281,8 +306,14 @@ class NoteEditActivity : Activity() {
             }, LinearLayout.LayoutParams(dp(24), dp(24)).apply { marginEnd = dp(8) })
         }
         bar.addView(dots, LinearLayout.LayoutParams(0, -2, 1f))
+        favBtn = TextView(this).apply {
+            textSize = 22f; setPadding(dp(8), dp(2), dp(8), dp(2))
+            setOnClickListener { fav = !fav; paintFav() }
+        }
+        bar.addView(favBtn)
+        paintFav()
         bar.addView(TextView(this).apply {
-            text = "🗑"; textSize = 19f; setPadding(dp(10), dp(4), dp(10), dp(4))
+            text = "✕"; textSize = 14f; setTextColor(Color.parseColor("#6B7280")); setPadding(dp(10), dp(4), dp(10), dp(4))
             setOnClickListener {
                 AlertDialog.Builder(this@NoteEditActivity).setMessage("이 메모를 지울까요?")
                     .setPositiveButton("지우기") { _, _ ->
@@ -293,6 +324,26 @@ class NoteEditActivity : Activity() {
             }
         })
         root.addView(bar)
+        // 서식: 굵게 / 취소선 / 형광펜 (글자 고르고 누르기) · 글자 크기
+        val fbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(14), 0, dp(14), dp(4))
+        }
+        fun fbtn(label: String, style: (TextView) -> Unit = {}, onClick: () -> Unit) = TextView(this).apply {
+            text = label; textSize = 16f; gravity = Gravity.CENTER
+            setTextColor(Color.parseColor("#374151"))
+            background = GradientDrawable().apply { cornerRadius = dp(8).toFloat(); setColor(Color.parseColor("#14000000")) }
+            setPadding(dp(12), dp(5), dp(12), dp(5))
+            style(this)
+            setOnClickListener { onClick() }
+        }.also { fbar.addView(it, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) }) }
+        fbtn("B", { it.setTypeface(it.typeface, Typeface.BOLD) }) { toggleSpan { UBold() } }
+        fbtn("S", { it.paintFlags = it.paintFlags or android.graphics.Paint.STRIKE_THRU_TEXT_FLAG }) { toggleSpan { UStrike() } }
+        fbtn("형광", { it.setBackgroundColor(Color.parseColor("#FFE066")) }) { toggleSpan { UHigh() } }
+        fbar.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+        fbtn("A−") { fs = maxOf(8, fs - 1); applyFs() }
+        fbtn("A+") { fs = minOf(28, fs + 1); applyFs() }
+        root.addView(fbar)
 
         edit = EditText(this).apply {
             setText(original)
@@ -308,6 +359,8 @@ class NoteEditActivity : Activity() {
                 override fun afterTextChanged(s: Editable?) { styleTitle(s) }
             })
         }
+        loadFmt(n?.optJSONArray("fmt"))
+        applyFs()
         styleTitle(edit.text)
         val sv = ScrollView(this).apply { isFillViewport = true }
         sv.addView(edit, LinearLayout.LayoutParams(-1, -1))
@@ -340,13 +393,67 @@ class NoteEditActivity : Activity() {
     /** 첫 줄 굵고 크게 */
     private fun styleTitle(s: Editable?) {
         s ?: return
-        s.getSpans(0, s.length, StyleSpan::class.java).forEach { s.removeSpan(it) }
+        s.getSpans(0, s.length, StyleSpan::class.java).filter { it !is UBold }.forEach { s.removeSpan(it) }
         s.getSpans(0, s.length, RelativeSizeSpan::class.java).forEach { s.removeSpan(it) }
         val end = s.indexOf('\n').let { if (it < 0) s.length else it }
         if (end > 0) {
             s.setSpan(StyleSpan(Typeface.BOLD), 0, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
             s.setSpan(RelativeSizeSpan(1.15f), 0, end, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
+    }
+
+    private fun paintFav() {
+        favBtn.text = if (fav) "★" else "☆"
+        favBtn.setTextColor(if (fav) Color.parseColor("#C98A00") else Color.parseColor("#6B7280"))
+    }
+
+    private fun applyFs() { edit.textSize = 16f * fs / 11f }
+
+    // 글자 위치: 시트에는 '글자 수' 기준(PC와 같게), 폰은 UTF-16 기준이라 바꿔줌
+    private fun toCp(s: String, i: Int) = s.codePointCount(0, i.coerceIn(0, s.length))
+    private fun fromCp(s: String, cp: Int): Int =
+        try { s.offsetByCodePoints(0, cp.coerceIn(0, s.codePointCount(0, s.length))) } catch (e: Exception) { s.length }
+
+    private fun loadFmt(arr: JSONArray?) {
+        arr ?: return
+        val e = edit.text; val str = e.toString()
+        for (i in 0 until arr.length()) {
+            val r = arr.optJSONArray(i) ?: continue
+            val a = fromCp(str, r.optInt(0)); val b = fromCp(str, r.optInt(1))
+            if (b <= a) continue
+            val span: Any = when (r.optString(2)) { "b" -> UBold(); "s" -> UStrike(); "h" -> UHigh(); else -> continue }
+            e.setSpan(span, a, b, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
+
+    private fun collectFmt(): JSONArray {
+        val e = edit.text; val str = e.toString()
+        val out = JSONArray()
+        for ((cls, t) in listOf(UBold::class.java to "b", UStrike::class.java to "s", UHigh::class.java to "h")) {
+            e.getSpans(0, e.length, cls).sortedBy { e.getSpanStart(it) }.forEach {
+                val a = e.getSpanStart(it); val b = e.getSpanEnd(it)
+                if (b > a) out.put(JSONArray().put(toCp(str, a)).put(toCp(str, b)).put(t))
+            }
+        }
+        return out
+    }
+
+    /** 고른 부분에 서식 넣기/빼기 */
+    private fun <T : Any> toggleSpan(make: () -> T) {
+        val e = edit.text
+        val a = minOf(edit.selectionStart, edit.selectionEnd); val b = maxOf(edit.selectionStart, edit.selectionEnd)
+        if (a < 0 || b <= a) { Toast.makeText(this, "글자를 먼저 골라주세요", Toast.LENGTH_SHORT).show(); return }
+        val cls = make()::class.java
+        val old = e.getSpans(a, b, cls).filter { e.getSpanStart(it) < b && e.getSpanEnd(it) > a }
+        val covered = old.any { e.getSpanStart(it) <= a && e.getSpanEnd(it) >= b }
+        // 겹치는 건 잘라내고 바깥 부분만 남김
+        old.forEach {
+            val s0 = e.getSpanStart(it); val e0 = e.getSpanEnd(it)
+            e.removeSpan(it)
+            if (s0 < a) e.setSpan(make(), s0, a, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+            if (e0 > b) e.setSpan(make(), b, e0, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        if (!covered) e.setSpan(make(), a, b, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
     }
 
     private fun paint() {
@@ -363,14 +470,22 @@ class NoteEditActivity : Activity() {
         if (isNew) {
             if (t.isBlank()) return
             ops.put(Notes.patch(id, null, JSONObject().put("text", t).put("color", color)
-                .put("folded", false).put("top", false).put("created", now).put("updated", now)))
+                .put("folded", false).put("top", false).put("fav", fav).put("fs", fs).put("fmt", collectFmt())
+                .put("created", now).put("updated", now)))
             isNew = false
             Data.prefs(this).edit().putString("note_color", color).apply()
         } else {
-            if (t != original) ops.put(Notes.patch(id, "text", t)).put(Notes.patch(id, "updated", now))
+            val fmt = collectFmt()
+            val fmtChanged = fmt.toString() != origFmt
+            if (t != original) ops.put(Notes.patch(id, "text", t))
+            if (fmtChanged) ops.put(Notes.patch(id, "fmt", fmt))
+            if (t != original || fmtChanged) ops.put(Notes.patch(id, "updated", now))
             if (color != originalColor) ops.put(Notes.patch(id, "color", color))
+            if (fav != origFav) ops.put(Notes.patch(id, "fav", fav))
+            if (fs != origFs) ops.put(Notes.patch(id, "fs", fs))
+            origFmt = fmt.toString()
         }
-        original = t; originalColor = color
+        original = t; originalColor = color; origFav = fav; origFs = fs
         if (ops.length() > 0) Notes.send(this, ops)
     }
 }
