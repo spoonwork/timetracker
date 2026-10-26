@@ -202,7 +202,7 @@ class NotesActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(10), dp(8), dp(12))
             background = GradientDrawable().apply {
-                cornerRadius = dp(12).toFloat(); setColor(Notes.bg(n.optString("color")))
+                cornerRadius = dp(8).toFloat(); setColor(Notes.bg(n.optString("color")))
                 setStroke(dp(1), Color.parseColor("#14000000"))
             }
             setOnClickListener { open(id) }
