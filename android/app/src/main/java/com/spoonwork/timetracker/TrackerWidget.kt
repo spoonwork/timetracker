@@ -358,14 +358,17 @@ class TrackerWidget : AppWidgetProvider() {
             val clockSp = Data.clockSize(context)
             if (showClock) {
                 val cc = Data.clockColor(context)
-                for (cid in intArrayOf(R.id.clock_h, R.id.clock_m, R.id.clock_date)) rv.setTextColor(cid, cc)
-                rv.setTextViewTextSize(R.id.clock_h, android.util.TypedValue.COMPLEX_UNIT_SP, clockSp.toFloat())
-                rv.setTextViewTextSize(R.id.clock_m, android.util.TypedValue.COMPLEX_UNIT_SP, clockSp.toFloat())
-                rv.setTextViewTextSize(R.id.clock_date, android.util.TypedValue.COMPLEX_UNIT_SP, 15f * Art.fs)
+                val cv = RemoteViews(context.packageName, Data.clockLayout(context))   // 고른 글꼴
+                for (cid in intArrayOf(R.id.clock_h, R.id.clock_m, R.id.clock_date)) cv.setTextColor(cid, cc)
+                cv.setTextViewTextSize(R.id.clock_h, android.util.TypedValue.COMPLEX_UNIT_SP, clockSp.toFloat())
+                cv.setTextViewTextSize(R.id.clock_m, android.util.TypedValue.COMPLEX_UNIT_SP, clockSp.toFloat())
+                cv.setTextViewTextSize(R.id.clock_date, android.util.TypedValue.COMPLEX_UNIT_SP, 15f * Art.fs)
                 val week = arrayOf("일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일")
                 val now = java.util.Calendar.getInstance()
-                rv.setTextViewText(R.id.clock_date, "${now.get(java.util.Calendar.MONTH) + 1}월 ${now.get(java.util.Calendar.DAY_OF_MONTH)}일 " +
+                cv.setTextViewText(R.id.clock_date, "${now.get(java.util.Calendar.MONTH) + 1}월 ${now.get(java.util.Calendar.DAY_OF_MONTH)}일 " +
                     week[now.get(java.util.Calendar.DAY_OF_WEEK) - 1] + "  ·  " + Cal.monthGanji(nowDs) + "月 " + Cal.ganji(nowDs) + "日")
+                rv.removeAllViews(R.id.clock_box)
+                rv.addView(R.id.clock_box, cv)
             }
 
             // 할 일 / 오늘 일정 (이번 달 먼슬리에서만)
@@ -461,7 +464,7 @@ class TrackerWidget : AppWidgetProvider() {
                 rv.setTextViewTextSize(wid, android.util.TypedValue.COMPLEX_UNIT_SP, 12f * Art.fs)
             }
 
-            val clockDp = if (showClock) clockSp * 2 * 1.05f + 22f * Art.fs else 0f
+            val clockDp = if (showClock) clockSp * 2 * 1.05f + 22f * Art.fs - 18f else 0f
             val gridDp = maxOf(120f, maxH - 56f - clockDp - headDp - (if (isMonth) 22f else 0f))
             val bh = (gridDp * scale).toInt()
 

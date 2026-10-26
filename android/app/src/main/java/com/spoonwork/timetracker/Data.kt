@@ -76,6 +76,17 @@ object Data {
     fun clockColor(c: Context): Int = prefs(c).getInt("clock_color", Color.parseColor("#A8925A"))
     fun fontScale(c: Context): Float = prefs(c).getInt("font_pct", 100) / 100f
     fun clockSize(c: Context): Int = prefs(c).getInt("clock_sp", 66)
+    // 시계 글꼴: 폰에 들어있는 글꼴만 (위젯은 글꼴 파일을 못 씀)
+    val CLOCK_FONTS = linkedMapOf(
+        "basic" to "기본", "light" to "얇게", "thin" to "아주 얇게", "cond" to "좁게",
+        "black" to "아주 굵게", "serif" to "명조", "mono" to "고정폭", "hand" to "손글씨"
+    )
+    fun clockFont(c: Context): String = prefs(c).getString("clock_font", "basic") ?: "basic"
+    fun clockLayout(c: Context): Int = when (clockFont(c)) {
+        "light" -> R.layout.clock_light; "thin" -> R.layout.clock_thin; "cond" -> R.layout.clock_cond
+        "black" -> R.layout.clock_black; "serif" -> R.layout.clock_serif; "mono" -> R.layout.clock_mono
+        "hand" -> R.layout.clock_hand; else -> R.layout.clock_basic
+    }
 
     /** 달력에서 눌러 들어온 날짜 (없으면 오늘) */
     fun selDay(c: Context, id: Int): String? = prefs(c).getString("sel_$id", null)

@@ -245,28 +245,72 @@ class MainActivity : Activity() {
             root.addView(android.widget.HorizontalScrollView(this).apply { addView(row) })
             root.addView(gap(8))
         }
-        fun slider(title: String, key: String, def: Int, min: Int, max: Int, unit: String) {
-            val lab = text("$title  ${p.getInt(key, def)}$unit", 15f, bold = true)
+        // 슬라이더: 칸 단위로 딱딱 걸리게 (너무 잘 움직이지 않게)
+        fun slider(title: String, key: String, def: Int, min: Int, max: Int, unit: String, step: Int) {
+            fun snap(v: Int) = (min + Math.round((v - min).toFloat() / step) * step).coerceIn(min, max)
+            val lab = text("$title  ${snap(p.getInt(key, def))}$unit", 15f, bold = true)
             root.addView(lab)
-            root.addView(SeekBar(this).apply {
-                this.max = max - min
-                progress = p.getInt(key, def) - min
+            root.addView(SeekBar(this, null, 0, android.R.style.Widget_Material_SeekBar_Discrete).apply {
+                this.max = (max - min) / step
+                progress = (snap(p.getInt(key, def)) - min) / step
                 setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(s: SeekBar?, v: Int, fromUser: Boolean) {
-                        lab.text = "$title  ${v + min}$unit"
-                        p.edit().putInt(key, v + min).apply()
+                        val value = min + v * step
+                        lab.text = "$title  $value$unit" + if (value == def) " (기본)" else ""
+                        p.edit().putInt(key, value).apply()
                     }
                     override fun onStartTrackingTouch(s: SeekBar?) {}
                     override fun onStopTrackingTouch(s: SeekBar?) { TrackerWidget.render(applicationContext) }
                 })
-            })
+            }, LinearLayout.LayoutParams(-1, dp(36)))
             root.addView(gap(6))
+        }
+        // 시계 글꼴 고르기 (각 버튼은 그 글꼴로 보여줌)
+        fun fontPicker() {
+            root.addView(text("시계 글꼴", 15f, bold = true))
+            val grid = android.widget.GridLayout(this).apply { columnCount = 4 }
+            val btns = mutableMapOf<String, TextView>()
+            fun paintF() {
+                val cur = Data.clockFont(this)
+                for ((k, v) in btns) {
+                    val on = k == cur
+                    v.background = GradientDrawable().apply {
+                        cornerRadius = dp(12).toFloat()
+                        if (on) setColor(Color.parseColor("#1F2937")) else { setColor(Color.TRANSPARENT); setStroke(dp(1), Color.parseColor("#E5E7EB")) }
+                    }
+                    v.setTextColor(if (on) Color.WHITE else Color.parseColor("#374151"))
+                }
+            }
+            val fam = mapOf("basic" to "sans-serif", "light" to "sans-serif-light", "thin" to "sans-serif-thin",
+                "cond" to "sans-serif-condensed", "black" to "sans-serif-black", "serif" to "serif",
+                "mono" to "monospace", "hand" to "cursive")
+            for ((k, name) in Data.CLOCK_FONTS) {
+                val t = TextView(this).apply {
+                    text = "12:34\n$name"; textSize = 13f; gravity = Gravity.CENTER
+                    val bold = k == "basic" || k == "cond" || k == "serif" || k == "mono"
+                    typeface = Typeface.create(fam[k], if (bold) Typeface.BOLD else Typeface.NORMAL)
+                    setPadding(dp(4), dp(8), dp(4), dp(8))
+                    setOnClickListener {
+                        p.edit().putString("clock_font", k).apply()
+                        paintF(); TrackerWidget.render(applicationContext)
+                    }
+                }
+                btns[k] = t
+                grid.addView(t, android.widget.GridLayout.LayoutParams(
+                    android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED),
+                    android.widget.GridLayout.spec(android.widget.GridLayout.UNDEFINED, 1f)
+                ).apply { width = 0; setMargins(dp(3), dp(3), dp(3), dp(3)) })
+            }
+            paintF()
+            root.addView(grid)
+            root.addView(gap(8))
         }
         root.addView(text("꾸미기", 18f, bold = true))
         swatches("시계·날짜 색", "clock_color", Color.parseColor("#A8925A"), false)
-        slider("시계 크기", "clock_sp", 66, 36, 96, "")
+        fontPicker()
+        slider("시계 크기", "clock_sp", 66, 36, 96, "", 6)
         swatches("글자색 (달력·목록)", "text_color", 0, true)
-        slider("글자 크기", "font_pct", 100, 80, 130, "%")
+        slider("글자 크기", "font_pct", 100, 80, 130, "%", 5)
         root.addView(gap(8))
 
         // 글자색
