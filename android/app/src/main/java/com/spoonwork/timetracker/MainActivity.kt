@@ -61,6 +61,9 @@ class MainActivity : Activity() {
         val gap = { h: Int -> View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(h)) } }
 
         root.addView(text("타임트래커 위젯  v${Updater.currentVersion(this)}", 22f, bold = true))
+        root.addView(button("📝 스티커 메모 열기") {
+            startActivity(Intent(this, NotesActivity::class.java))
+        })
 
         // 업데이트 확인
         val upd = button("업데이트 확인 중…") {}

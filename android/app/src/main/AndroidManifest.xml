@@ -22,6 +22,24 @@
         </activity>
 
         <activity
+            android:name=".NotesActivity"
+            android:exported="true"
+            android:label="메모"
+            android:icon="@mipmap/ic_memo"
+            android:taskAffinity="com.spoonwork.timetracker.notes">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".NoteEditActivity"
+            android:exported="false"
+            android:taskAffinity="com.spoonwork.timetracker.notes"
+            android:windowSoftInputMode="adjustResize" />
+
+        <activity
             android:name=".QuickActivity"
             android:exported="false"
             android:excludeFromRecents="true"
