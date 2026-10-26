@@ -312,6 +312,21 @@ class NoteEditActivity : Activity() {
         val sv = ScrollView(this).apply { isFillViewport = true }
         sv.addView(edit, LinearLayout.LayoutParams(-1, -1))
         root.addView(sv, LinearLayout.LayoutParams(-1, 0, 1f))
+        // 작성 / 수정 날짜
+        val fmt = java.text.SimpleDateFormat("yyyy.M.d (E) HH:mm", java.util.Locale.KOREAN)
+        val created = n?.optLong("created", 0L) ?: 0L
+        val updated = n?.optLong("updated", 0L) ?: 0L
+        root.addView(TextView(this).apply {
+            text = if (n == null) "새 메모"
+                else listOfNotNull(
+                    if (created > 0) "작성 " + fmt.format(java.util.Date(created)) else null,
+                    if (updated > 0) "수정 " + fmt.format(java.util.Date(updated)) else null
+                ).joinToString("   ·   ")
+            textSize = 11.5f
+            setTextColor(Color.parseColor("#80000000"))
+            gravity = Gravity.CENTER
+            setPadding(dp(12), dp(8), dp(12), dp(12))
+        })
         setContentView(root)
         paint()
         if (isNew) {
