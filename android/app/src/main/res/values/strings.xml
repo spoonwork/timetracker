@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_desc">오늘 작업시간, 할 일, 일정</string>
+    <string name="note_widget_desc">빠른 메모 (PC 스티커와 같이)</string>
 </resources>

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ncard"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitXY"
+        android:src="@drawable/note_card" />
+    <ImageView
+        android:id="@+id/naccent"
+        android:layout_width="4dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="9dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="12dp"
+        android:scaleType="fitXY"
+        android:src="@drawable/note_bar" />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="22dp"
+        android:paddingTop="11dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="12dp">
+        <TextView
+            android:id="@+id/ntitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#1F2937"
+            android:textSize="14.5sp"
+            android:textStyle="bold" />
+        <TextView
+            android:id="@+id/nbody"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:lineSpacingMultiplier="1.1"
+            android:maxLines="2"
+            android:textColor="#6B7280"
+            android:textSize="13sp" />
+    </LinearLayout>
+</FrameLayout>

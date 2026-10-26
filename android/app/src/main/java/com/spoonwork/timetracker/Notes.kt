@@ -53,7 +53,10 @@ object Notes {
     fun cache(c: Context): JSONObject =
         try { JSONObject(Data.prefs(c).getString("stickies", "{}") ?: "{}") } catch (e: Exception) { JSONObject() }
 
-    fun saveCache(c: Context, j: JSONObject) = Data.prefs(c).edit().putString("stickies", j.toString()).apply()
+    fun saveCache(c: Context, j: JSONObject) {
+        Data.prefs(c).edit().putString("stickies", j.toString()).apply()
+        try { NoteWidget.render(c.applicationContext) } catch (_: Exception) {}   // 메모 위젯도 같이 새로
+    }
 
     fun fetch(c: Context): JSONObject {
         val st = Data.fetchAppData(c).optJSONObject("stickies") ?: JSONObject()

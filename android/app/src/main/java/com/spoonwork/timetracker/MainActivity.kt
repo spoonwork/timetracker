@@ -102,6 +102,38 @@ class MainActivity : Activity() {
         ))
         root.addView(gap(16))
 
+        // 메모 위젯 모양
+        root.addView(text("메모 위젯 모양", 15f, bold = true))
+        val styleRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val chips = mutableMapOf<String, TextView>()
+        fun paintChips() {
+            val cur = NoteWidget.style(this)
+            for ((k, v) in chips) {
+                val on = k == cur
+                v.background = GradientDrawable().apply {
+                    cornerRadius = dp(12).toFloat()
+                    if (on) setColor(Color.parseColor("#1F2937")) else { setColor(Color.TRANSPARENT); setStroke(dp(1), Color.parseColor("#E5E7EB")) }
+                }
+                v.setTextColor(if (on) Color.WHITE else Color.parseColor("#374151"))
+            }
+        }
+        for ((k, name) in NoteWidget.STYLES) {
+            val t = TextView(this).apply {
+                text = name; textSize = 13f; gravity = android.view.Gravity.CENTER
+                setPadding(dp(8), dp(10), dp(8), dp(10))
+                setOnClickListener {
+                    p.edit().putString("note_style", k).apply()
+                    paintChips(); NoteWidget.render(applicationContext)
+                }
+            }
+            chips[k] = t
+            styleRow.addView(t, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
+        }
+        paintChips()
+        root.addView(styleRow)
+        root.addView(text("흰색 메모는 색 표시 없이 나와요", 12f, Color.parseColor("#9CA3AF")))
+        root.addView(gap(16))
+
         // 비밀 키 (시트 연결 잠금)
         root.addView(text("비밀 키", 15f, bold = true))
         root.addView(android.widget.EditText(this).apply {
