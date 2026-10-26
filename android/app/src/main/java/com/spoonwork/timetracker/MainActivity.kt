@@ -102,6 +102,23 @@ class MainActivity : Activity() {
         ))
         root.addView(gap(16))
 
+        // 비밀 키 (시트 연결 잠금)
+        root.addView(text("비밀 키", 15f, bold = true))
+        root.addView(android.widget.EditText(this).apply {
+            hint = "웹앱·PC와 같은 키를 넣어주세요"
+            setSingleLine(true)
+            setText(p.getString("auth", ""))
+            addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+                override fun onTextChanged(a: CharSequence?, b: Int, c: Int, d: Int) {}
+                override fun afterTextChanged(e: android.text.Editable?) {
+                    val k = e?.toString()?.trim() ?: ""
+                    p.edit().putString("auth", k).apply(); Data.authKey = k
+                }
+            })
+        })
+        root.addView(gap(16))
+
         // 배경 진하기
         val alphaLabel = text("배경 진하기  ${Data.bgAlpha(this)}%", 15f, bold = true)
         root.addView(alphaLabel)

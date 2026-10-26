@@ -40,7 +40,20 @@ object Data {
     }
 
     // ---------------- 저장소 ----------------
-    fun prefs(c: Context): SharedPreferences = c.getSharedPreferences("tt", Context.MODE_PRIVATE)
+    @Volatile var authKey: String = ""
+    fun prefs(c: Context): SharedPreferences {
+        val sp = c.getSharedPreferences("tt", Context.MODE_PRIVATE)
+        authKey = sp.getString("auth", "") ?: ""
+        return sp
+    }
+    // 시트 주소로 가는 요청에만 비밀 키를 붙임
+    private fun withAuthUrl(u: String): String =
+        if (authKey.isEmpty() || !u.contains("script.google")) u
+        else u + (if (u.contains("?")) "&" else "?") + "auth=" + java.net.URLEncoder.encode(authKey, "UTF-8")
+    private fun withAuthBody(u: String, body: String): String {
+        if (authKey.isEmpty() || !u.contains("script.google")) return body
+        return try { org.json.JSONObject(body).put("auth", authKey).toString() } catch (e: Exception) { body }
+    }
 
     fun url(c: Context): String = prefs(c).getString("url", null)?.takeIf { it.isNotBlank() } ?: DEFAULT_URL
 
@@ -146,7 +159,7 @@ object Data {
         }
 
     fun httpGet(start: String): String {
-        var u = start
+        var u = withAuthUrl(start)
         repeat(6) {
             val c = open(u)
             val code = c.responseCode
@@ -166,7 +179,7 @@ object Data {
         c.requestMethod = "POST"
         c.doOutput = true
         c.setRequestProperty("Content-Type", "text/plain;charset=utf-8")
-        c.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        c.outputStream.use { it.write(withAuthBody(u, body).toByteArray(Charsets.UTF_8)) }
         val code = c.responseCode
         if (code in 300..399) {
             val loc = c.getHeaderField("Location") ?: throw IOException("redirect")

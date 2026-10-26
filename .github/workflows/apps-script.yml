@@ -23,6 +23,7 @@ jobs:
         env:
           CLASPRC: ${{ secrets.CLASPRC_JSON }}
           WORKCAL_ID: ${{ secrets.WORKCAL_ID }}
+          API_KEY: ${{ secrets.API_KEY }}
         run: |
           exec > >(tee /tmp/gs.log) 2>&1
           if [ -z "$CLASPRC" ]; then echo "CLASPRC_JSON secret is missing"; exit 1; fi
@@ -35,7 +36,7 @@ jobs:
           # 지금 배포된 코드에서 시트 ID를 가져와 새 코드에 채움
           SHEET_ID=$(grep -oP "SPREADSHEET_ID = '\K[^'_][^']+" WebappAPI.js | head -1)
           if [ -z "$SHEET_ID" ]; then echo "sheet id not found"; exit 1; fi
-          sed "s/__SHEET_ID__/$SHEET_ID/; s/__WORKCAL_ID__/$WORKCAL_ID/" ../apps-script/WebappAPI.js > WebappAPI.js
+          sed "s/__SHEET_ID__/$SHEET_ID/; s/__WORKCAL_ID__/$WORKCAL_ID/; s/__API_KEY__/${API_KEY:-__API_KEY__}/" ../apps-script/WebappAPI.js > WebappAPI.js
           grep -c "__SHEET_ID__" WebappAPI.js && exit 1 || true
           clasp push -f
           clasp deploy -i AKfycbzKAlhhA02RpnXPVrTLIDrfpQooM2OGlV4jQaNgzrG4tZav9ir84K8nxsr6saQVPT_d -d "auto ${{ github.run_number }}"

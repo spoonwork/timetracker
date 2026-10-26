@@ -2851,6 +2851,47 @@ function showCellInfo(text) {
   cellInfoTimer = setTimeout(() => { statusEl.textContent = ''; }, 3000);
 }
 
+// ===== 비밀 키: 시트 주소로 오가는 요청에 자동으로 붙임 =====
+(function () {
+  try {
+    const q = new URLSearchParams(location.search).get('auth');
+    if (q) {   // 주소창에 ?auth=키 로 한 번 넣으면 저장
+      localStorage.setItem('tt-auth', q);
+      history.replaceState(null, '', location.pathname + location.search.replace(/[?&]auth=[^&]*/, '').replace(/^&/, '?'));
+    }
+  } catch (e) {}
+  const orig = window.fetch.bind(window);
+  let asking = false;
+  window.fetch = async function (url, opts) {
+    const u = String(url || '');
+    if (!u.startsWith(CONFIG.APPS_SCRIPT_URL)) return orig(url, opts);
+    let key = '';
+    try { key = localStorage.getItem('tt-auth') || ''; } catch (e) {}
+    opts = Object.assign({}, opts || {});
+    if (key) {
+      if ((opts.method || 'GET').toUpperCase() === 'POST' && typeof opts.body === 'string') {
+        try { const b = JSON.parse(opts.body); b.auth = key; opts.body = JSON.stringify(b); } catch (e) {}
+      } else {
+        url = u + (u.includes('?') ? '&' : '?') + 'auth=' + encodeURIComponent(key);
+      }
+    }
+    const res = await orig(url, opts);
+    try {
+      const j = await res.clone().json();
+      if (j && j.error === 'auth' && !asking) {
+        asking = true;
+        const k = window.prompt('비밀 키를 넣어주세요 (한 번만 넣으면 이 기기에 기억돼요)', '');
+        asking = false;
+        if (k && k.trim()) {
+          localStorage.setItem('tt-auth', k.trim());
+          return window.fetch(u, arguments[1]);
+        }
+      }
+    } catch (e) {}
+    return res;
+  };
+})();
+
 // ===== Apps Script 연동 =====
 async function fetchAllData(fresh) {
   const url = CONFIG.APPS_SCRIPT_URL + (fresh ? '?fresh=1' : '');

@@ -14,6 +14,16 @@ function openSS() {
   return SpreadsheetApp.openById(SPREADSHEET_ID);
 }
 
+// 비밀 키: 배포할 때 GitHub 비밀값(API_KEY)으로 채워짐. 비어 있으면(키 설정 전) 검사 안 함
+const API_KEY = '__API_KEY__';
+function authOk(given) {
+  if (!API_KEY || API_KEY.indexOf('__') === 0) return true;
+  return String(given || '') === API_KEY;
+}
+function authFail() {
+  return makeJsonResponse({ ok: false, error: 'auth', message: '비밀 키가 맞지 않아요' });
+}
+
 // 웹앱 데이터 저장용 시트
 const APP_DATA_SHEET = '앱데이터';
 
@@ -35,6 +45,7 @@ function setupAppDataSheet() {
 // =============== GET (웹앱이 데이터 요청) ===============
 function doGet(e) {
   try {
+    if (!authOk(e && e.parameter && e.parameter.auth)) return authFail();
     setupAppDataSheet();
     const ss = openSS();
 
@@ -105,6 +116,7 @@ function doPost(e) {
     const appSheet = ss.getSheetByName(APP_DATA_SHEET);
 
     const body = JSON.parse(e.postData.contents);
+    if (!authOk(body.auth)) return authFail();
     if (body.ops) return makeJsonResponse(applyWidgetOps(ss, appSheet, body.ops));
     const key = body.key;
     const value = body.value;
