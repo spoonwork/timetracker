@@ -464,7 +464,7 @@ class TrackerWidget : AppWidgetProvider() {
                 rv.setTextViewTextSize(wid, android.util.TypedValue.COMPLEX_UNIT_SP, 12f * Art.fs)
             }
 
-            val clockDp = if (showClock) clockSp * 2 * 1.05f + 22f * Art.fs - 18f else 0f
+            val clockDp = if (showClock) clockSp * 2 * 1.05f + 22f * Art.fs - 10f else 0f
             val gridDp = maxOf(120f, maxH - 56f - clockDp - headDp - (if (isMonth) 22f else 0f))
             val bh = (gridDp * scale).toInt()
 
