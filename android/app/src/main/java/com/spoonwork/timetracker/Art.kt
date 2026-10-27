@@ -302,7 +302,7 @@ object Art {
                 var color = it.color
                 if (!inMonth(week[a]) && !inMonth(week[b])) color = Color.argb(110, Color.red(color), Color.green(color), Color.blue(color))
                 val ts = 9f * u * fs
-                if (it.end < todayDs) {
+                if (it.end < todayDs && it.sheet) {      // 지난 날 스프레드 할 일만: 색칠 없이 빨간 글자 + 줄
                     // 지난 날: 색칠 없이 빨간 글자 + 줄 긋기
                     p.color = RED
                     if (!inMonth(week[a]) && !inMonth(week[b])) p.alpha = 110
