@@ -575,6 +575,12 @@ function buildWidgetSummary(ss, date, fromDs, toDs, fresh) {
       Object.keys(all).forEach(function (k) { if (k >= fromDs && k <= toDs) sel[k] = all[k]; });
       return sel;
     })(),
+    // 할 일 ↔ 스프레드 '📅 스케쥴' 연결 (폰·PC 같이 씀)
+    schedLink: (function () {
+      const sl = app.schedLink || {}, out = {};
+      Object.keys(sl).forEach(function (d) { if (d >= shiftDate(fromDs, -7) && d <= toDs) out[d] = sl[d]; });
+      return out;
+    })(),
     // 폰이 올린 캘린더 일정 (PC 사이드바용): 범위 안 것만
     phoneCal: (function () {
       const pc = app.phoneCal || {};
@@ -653,7 +659,7 @@ function paintRangeGs(mb, ds, s, e, cat) {
   mb[ds] = merged;
 }
 
-const WEBAPP_PATCH_KEYS = ['manualBlocks', 'todos', 'hourPlans', 'hourMarkers', 'hourChecks', 'hourAlign', 'see', 'workTypes', 'gcalWant', 'stickies', 'phoneCal'];
+const WEBAPP_PATCH_KEYS = ['manualBlocks', 'todos', 'hourPlans', 'hourMarkers', 'hourChecks', 'hourAlign', 'see', 'workTypes', 'gcalWant', 'stickies', 'phoneCal', 'schedLink'];
 
 function applyWidgetOps(ss, appSheet, ops) {
   const lock = LockService.getScriptLock();

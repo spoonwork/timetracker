@@ -240,11 +240,27 @@ object Data {
     // ---- 할 일 ↔ 작업 스프레드 '📅 스케쥴' 연결 (내용은 숨김) ----
     const val SCHED = "📅 스케쥴"
     private fun tlnkKey(day: String, text: String) = "tlnk_${day}_$text"
-    fun schedLinked(c: Context, day: String, text: String) = prefs(c).getBoolean(tlnkKey(day, text), false)
+    /** 이 할 일이 스프레드 '📅 스케쥴'과 연결됐는지 (폰에서 만든 것 + PC·서버에 적힌 것) */
+    fun schedLinked(c: Context, day: String, text: String): Boolean {
+        val p = prefs(c)
+        if (p.getBoolean(tlnkKey(day, text), false)) return true
+        if (p.getBoolean(tlnkKey(day, text) + "_off", false)) return false
+        return cache(c)?.optJSONObject("schedLink")?.optJSONObject(day)?.optBoolean(text, false) ?: false
+    }
     fun setSchedLink(c: Context, day: String, text: String, on: Boolean) {
         val e = prefs(c).edit()
-        if (on) e.putBoolean(tlnkKey(day, text), true) else e.remove(tlnkKey(day, text))
+        if (on) e.putBoolean(tlnkKey(day, text), true).remove(tlnkKey(day, text) + "_off")
+        else e.remove(tlnkKey(day, text)).putBoolean(tlnkKey(day, text) + "_off", true)
         e.apply()
+        // 다른 기기(PC 사이드바)도 알게 시트에 적어둠
+        val ctx = c.applicationContext
+        Thread {
+            try {
+                val op = JSONObject().put("t", "patch").put("k", "schedLink").put("p", JSONArray().put(day).put(text))
+                    .put("v", if (on) true else JSONObject.NULL)
+                httpPost(url(ctx), JSONObject().put("ops", JSONArray().put(op)).toString())
+            } catch (_: Exception) {}
+        }.start()
     }
     /** 할 일 체크/지우기/고치기 때 연결된 '📅 스케쥴' 칸도 같이 */
     fun schedOpsFor(c: Context, o: JSONObject): JSONObject? {

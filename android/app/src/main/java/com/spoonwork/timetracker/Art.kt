@@ -44,7 +44,8 @@ object Art {
     /** 사용자 설정: 글자색(없으면 자동), 글자 크기 배율 */
     var textOverride: Int? = null
     var fs: Float = 1f
-    var showSheet: Boolean = true      // 달력 날짜칸에 작업 스프레드 할 일 보이기
+    var showSheet: Boolean = true
+    var schedLink: JSONObject? = null   // 할 일 ↔ '📅 스케쥴' 연결      // 달력 날짜칸에 작업 스프레드 할 일 보이기
     private fun mainOf(dark: Boolean): Int = textOverride ?: if (dark) Color.WHITE else Color.parseColor("#1F2937")
     private val RED = Color.parseColor("#E5484D")
     private val BLUE = Color.parseColor("#3B82F6")
@@ -79,6 +80,17 @@ object Art {
                     val col = if (w.optBoolean("done")) Color.argb(120, 0xEA, 0x99, 0x99) else SHEET_BAR
                     out.add(Item(text, col, d, d,
                         Data.toCal(d).timeInMillis + 1L + j, "", sheet = true, done = w.optBoolean("done")))
+                }
+                // 📅 스케쥴로만 올린 내 할 일: 나한테는 내용 그대로 (스프레드 줄 색)
+                val tl = days.optJSONObject(d)?.optJSONArray("t")
+                val links = schedLink?.optJSONObject(d)
+                if (tl != null && links != null && showSheet) for (j in 0 until tl.length()) {
+                    val x = tl.optJSONObject(j) ?: continue
+                    val text = x.optString("text")
+                    if (!links.optBoolean(text)) continue
+                    val dn = x.optBoolean("done")
+                    out.add(Item(text, if (dn) Color.argb(120, 0xEA, 0x99, 0x99) else SHEET_BAR, d, d,
+                        Data.toCal(d).timeInMillis + 500L + j, "", sheet = true, done = dn))
                 }
                 val p = days.optJSONObject(d)?.optJSONObject("p")
                 if (p != null) {
