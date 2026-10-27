@@ -50,7 +50,8 @@ object Art {
     private val BLUE = Color.parseColor("#3B82F6")
     private val WORK = Color.parseColor("#E85A5A")
     private val ACCENT = Color.parseColor("#10B981")
-    private val TODAY = Color.parseColor("#FFD84D")
+    /** 오늘 표시 색 (설정): 칸 색, 숫자 색 */
+    var todayStyle: Pair<Int, Int> = Pair(Color.parseColor("#FFD84D"), Color.parseColor("#1F2937"))
 
     fun items(days: JSONObject?, events: List<Cal.Ev>, fromDs: String, toDs: String): List<Item> {
         val out = mutableListOf<Item>()
@@ -244,10 +245,11 @@ object Art {
                 p.textAlign = Paint.Align.CENTER
                 if (ds == todayDs) {
                     // 오늘: 노란 둥근 네모 (작업 막대·음력과 안 겹치게 위아래 짧게)
-                    p.color = TODAY
+                    val tc = todayStyle
+                    p.color = tc.first
                     val half = maxOf(p.measureText(dayNum) / 2 + 3 * u, 7 * u)
                     c.drawRoundRect(RectF(cx - 5 * u - half, y + 5.5f * u, cx - 5 * u + half, y + 18.8f * u), 3.5f * u, 3.5f * u, p)
-                    numColor = Color.parseColor("#1F2937")
+                    numColor = tc.second
                 }
                 p.color = numColor
                 c.drawText(dayNum, cx - 5 * u, y + 16.5f * u, p)

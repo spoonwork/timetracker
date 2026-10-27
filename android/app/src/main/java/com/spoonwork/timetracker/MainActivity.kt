@@ -307,6 +307,34 @@ class MainActivity : Activity() {
         }
         root.addView(text("꾸미기", 18f, bold = true))
         swatches("시계·날짜 색", "clock_color", Color.parseColor("#A8925A"), false)
+        // 먼슬리 오늘 표시 색
+        root.addView(text("오늘 표시 색", 15f, bold = true))
+        val trow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val tchips = mutableMapOf<String, TextView>()
+        fun paintT() {
+            val cur = p.getString("today_style", "yellow")
+            for ((k, v) in tchips) {
+                val st = Data.TODAY_STYLES[k]!!
+                v.background = GradientDrawable().apply {
+                    cornerRadius = dp(8).toFloat(); setColor(Color.parseColor(st.second))
+                    if (k == cur) setStroke(dp(3), Color.parseColor("#93C5FD"))
+                }
+                v.setTextColor(Color.parseColor(st.third))
+            }
+        }
+        for ((k, st) in Data.TODAY_STYLES) {
+            val t = TextView(this).apply {
+                text = "27 " + st.first; textSize = 13f; gravity = Gravity.CENTER
+                setTypeface(typeface, Typeface.BOLD)
+                setPadding(dp(4), dp(9), dp(4), dp(9))
+                setOnClickListener { p.edit().putString("today_style", k).apply(); paintT(); TrackerWidget.render(applicationContext) }
+            }
+            tchips[k] = t
+            trow.addView(t, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
+        }
+        paintT()
+        root.addView(trow)
+        root.addView(gap(10))
         fontPicker()
         slider("시계 크기", "clock_sp", 66, 36, 96, "", 6)
         swatches("글자색 (달력·목록)", "text_color", 0, true)

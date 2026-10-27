@@ -75,6 +75,17 @@ object Data {
     fun textColor(c: Context): Int? = prefs(c).getInt("text_color", 0).takeIf { it != 0 }
     fun clockColor(c: Context): Int = prefs(c).getInt("clock_color", Color.parseColor("#A8925A"))
     fun fontScale(c: Context): Float = prefs(c).getInt("font_pct", 100) / 100f
+    // 먼슬리 오늘 표시 색
+    val TODAY_STYLES = linkedMapOf(
+        "yellow" to Triple("노랑", "#FFD84D", "#1F2937"),
+        "black" to Triple("검정", "#1F2937", "#FFFFFF"),
+        "green" to Triple("초록", "#10B981", "#FFFFFF"),
+        "red" to Triple("빨강", "#E5484D", "#FFFFFF"),
+    )
+    fun todayStyle(c: Context): Pair<Int, Int> {
+        val t = TODAY_STYLES[prefs(c).getString("today_style", "yellow")] ?: TODAY_STYLES["yellow"]!!
+        return Pair(Color.parseColor(t.second), Color.parseColor(t.third))
+    }
     fun clockSize(c: Context): Int = prefs(c).getInt("clock_sp", 66)
     // 시계 글꼴: 폰에 들어있는 글꼴만 (위젯은 글꼴 파일을 못 씀)
     val CLOCK_FONTS = linkedMapOf(
