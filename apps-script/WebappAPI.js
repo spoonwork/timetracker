@@ -484,7 +484,7 @@ function applyWorkOp(wb, o) {
 }
 
 // 웹 트래커와 같은 작업 분류 (손으로 칠한 기록)
-const WIDGET_WORK_CATS = ['작업', '텀블벅', '인보이스', '나스', '그림', '3D', '3D배경', 'AI', '코딩', '문서', 'XLS', 'HWP', 'Word', 'EV', '카톡'];
+const WIDGET_WORK_CATS = ['작업', '텀블벅', '인보이스', '나스', '그림', '3D', '3D배경', '문서', 'XLS', 'HWP', 'Word', 'EV', '카톡'];   // AI·코딩은 기타 업무
 
 function ivUnionGs(iv) {
   const a = iv.filter(function (x) { return x[1] > x[0]; }).sort(function (p, q) { return p[0] - q[0]; });

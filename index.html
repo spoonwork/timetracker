@@ -784,7 +784,8 @@ const CONFIG = {
     deadline: { label: '마감',   emoji: '🔥', color: '#E07070' },
     rest:     { label: '휴식',   emoji: '😴', color: '#C8C8C8' },
   },
-  WORK_CATEGORIES: ['작업', '텀블벅', '인보이스', '나스', '그림', '3D', '3D배경', 'AI', '코딩', '문서', 'XLS', 'HWP', 'Word', 'EV', '카톡'],
+  WORK_CATEGORIES: ['작업', '텀블벅', '인보이스', '나스', '그림', '3D', '3D배경', '문서', 'XLS', 'HWP', 'Word', 'EV', '카톡'],
+  OTHER_WORK_CATEGORIES: ['AI', '코딩'],   // 기타 업무: 일이지만 원고 작업은 아님 → 작업시간과 따로
   TAX_CATEGORIES: ['세무'],
   SLEEP_CATEGORIES: ['수면'],
   AUTO_KEYWORD_MAP: [
@@ -1921,6 +1922,8 @@ function calcDayStats(date) {
   const manualWork = ivLen(manualOf(isWork));
   let workMin = Math.round(autoWork + manualWork);
   const taxMin = Math.round(ivLen(autoOf(isTax)) + ivLen(manualOf(isTax)));
+  const isOther = c => (CONFIG.OTHER_WORK_CATEGORIES || []).includes(c);
+  const otherMin = Math.round(ivLen(autoOf(isOther)) + ivLen(manualOf(isOther)));
   let distractMin = Math.round(ivLen(autoOf(isDis)));
 
   const sleepMin = calcSleepWindow(date);
@@ -1932,7 +1935,7 @@ function calcDayStats(date) {
     distractMin += Math.round(ff.idle / 60);
   }
 
-  return { workMin, taxMin, distractMin, sleepMin, autoWork: Math.round(autoWork), manualWork: Math.round(manualWork) };
+  return { workMin, taxMin, otherMin, distractMin, sleepMin, autoWork: Math.round(autoWork), manualWork: Math.round(manualWork) };
 }
 
 function renderStats() {
@@ -1965,6 +1968,11 @@ function renderStats() {
     const diff = Math.round(stats.workMin - avg);
     setSub('s-work-sub', `이번 주 평균 ${fmt(Math.round(avg))} · <b class="${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? '+' : '−'}${fmt(Math.abs(diff))}</b>`);
   } else setSub('s-work-sub', '');
+  // 기타 업무 (AI · 코딩): 작업시간과 따로 보여줌
+  if (stats.otherMin > 0) {
+    const el = document.getElementById('s-work-sub');
+    if (el) el.innerHTML = `기타 업무 ${fmt(stats.otherMin)}` + (el.innerHTML ? ' · ' + el.innerHTML : '');
+  }
   // 집계 근거: 손으로 칠한 작업이 있으면 "PC 자동 + 손 기록"
   if (stats.manualWork > 0) {
     const el = document.getElementById('s-work-sub');
