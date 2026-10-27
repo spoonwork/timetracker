@@ -54,10 +54,13 @@ object GcalSync {
                 val h = hk.toIntOrNull()
                 val text = plans?.optString(hk, "")?.trim() ?: ""
                 if (h != null && text.isNotEmpty() && d >= today && Cal.link(ctx, d, h) == null) {
-                    val begin = Data.toCal(d).timeInMillis +
-                        (if (h < Data.DAY_START) h + 24 else h) * 3600_000L
-                    val id = Cal.insert(ctx, text, begin, begin + 3600_000L)
-                    if (id != null) { Cal.setLink(ctx, d, h, Cal.Link(id, begin, begin + 3600_000L, text, 0L)); changed++ }
+                    val hh = if (h < Data.DAY_START) h + 24 else h
+                    val begin = Data.toCal(d).timeInMillis + hh * 3600_000L
+                    // PC 일정 창은 끝나는 시각을 값으로 보냄 (예전 값 1은 한 시간)
+                    val eh = gw.optInt(hk, 0).let { if (it > hh) it else hh + 1 }
+                    val end = Data.toCal(d).timeInMillis + eh * 3600_000L
+                    val id = Cal.insert(ctx, text, begin, end)
+                    if (id != null) { Cal.setLink(ctx, d, h, Cal.Link(id, begin, end, text, 0L)); changed++ }
                     else continue   // 실패하면 표시 남겨두고 다음에 다시
                 }
                 clear.put(JSONObject().put("t", "patch").put("k", "gcalWant").put("p", JSONArray().put(d).put(hk)).put("v", JSONObject.NULL))
