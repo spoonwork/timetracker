@@ -120,6 +120,33 @@ class TrackerWidget : AppWidgetProvider() {
         }
 
         /** 실제로 받아오기 (RefreshJob 안에서 호출) */
+        /** 폰 캘린더 일정을 시트로 올림 → PC 사이드바가 같은 일정을 보여줌 (바뀌었을 때만) */
+        fun pushPhoneCal(ctx: Context, today: String) {
+            val from = Data.shift(today, -45)
+            val to = Data.shift(today, 75)
+            val arr = org.json.JSONArray()
+            for (e in Cal.events(ctx, from, to)) {
+                if (e.title.isBlank()) continue
+                val ds = e.days()
+                if (ds.isEmpty()) continue
+                val c = java.util.Calendar.getInstance().apply { timeInMillis = e.begin }
+                val tm = if (e.allDay) "" else String.format(java.util.Locale.US, "%02d:%02d",
+                    c.get(java.util.Calendar.HOUR_OF_DAY), c.get(java.util.Calendar.MINUTE))
+                val col = if (e.color == 0) "#7986CB" else String.format("#%06X", e.color and 0xFFFFFF)
+                arr.put(org.json.JSONObject().put("t", e.title).put("d", ds.first()).put("e", ds.last())
+                    .put("tm", tm).put("c", col))
+            }
+            val txt = arr.toString()
+            val pr = Data.prefs(ctx)
+            val h = txt.hashCode()
+            if (h == pr.getInt("pcal_hash", 0) && System.currentTimeMillis() - pr.getLong("pcal_at", 0L) < 6 * 3600_000L) return
+            val ops = org.json.JSONArray()
+                .put(org.json.JSONObject().put("t", "patch").put("k", "phoneCal").put("p", org.json.JSONArray().put("ev")).put("v", arr))
+                .put(org.json.JSONObject().put("t", "patch").put("k", "phoneCal").put("p", org.json.JSONArray().put("at")).put("v", System.currentTimeMillis()))
+            Data.httpPost(Data.url(ctx), org.json.JSONObject().put("ops", ops).toString())
+            pr.edit().putInt("pcal_hash", h).putLong("pcal_at", System.currentTimeMillis()).apply()
+        }
+
         fun fetchNow(ctx: Context) {
             try {
                 Data.prefs(ctx).edit().remove("crash_widget").apply()
@@ -146,6 +173,7 @@ class TrackerWidget : AppWidgetProvider() {
                 }
                 val fresh = pr0.getBoolean("fresh_next", false)
                 val j = Data.fetchSummary(ctx, today, from, to, fresh)
+                try { pushPhoneCal(ctx, today) } catch (_: Throwable) {}
                 if (fresh) pr0.edit().remove("fresh_next").apply()
                 val pr = Data.prefs(ctx)
                 if (fresh || System.currentTimeMillis() - pr.getLong("latest_at", 0L) > 6 * 3600_000L) {

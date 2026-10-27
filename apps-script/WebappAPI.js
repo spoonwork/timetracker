@@ -575,6 +575,12 @@ function buildWidgetSummary(ss, date, fromDs, toDs, fresh) {
       Object.keys(all).forEach(function (k) { if (k >= fromDs && k <= toDs) sel[k] = all[k]; });
       return sel;
     })(),
+    // 폰이 올린 캘린더 일정 (PC 사이드바용): 범위 안 것만
+    phoneCal: (function () {
+      const pc = app.phoneCal || {};
+      const ev = (pc.ev || []).filter(function (x) { return (x.e || x.d) >= fromDs && x.d <= toDs; });
+      return { at: pc.at || 0, ev: ev };
+    })(),
     timestamp: new Date().toISOString(),
   };
 }
@@ -647,7 +653,7 @@ function paintRangeGs(mb, ds, s, e, cat) {
   mb[ds] = merged;
 }
 
-const WEBAPP_PATCH_KEYS = ['manualBlocks', 'todos', 'hourPlans', 'hourMarkers', 'hourChecks', 'hourAlign', 'see', 'workTypes', 'gcalWant', 'stickies'];
+const WEBAPP_PATCH_KEYS = ['manualBlocks', 'todos', 'hourPlans', 'hourMarkers', 'hourChecks', 'hourAlign', 'see', 'workTypes', 'gcalWant', 'stickies', 'phoneCal'];
 
 function applyWidgetOps(ss, appSheet, ops) {
   const lock = LockService.getScriptLock();
