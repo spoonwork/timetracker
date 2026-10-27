@@ -87,7 +87,7 @@ class NoteWidgetService : RemoteViewsService() {
             val (id, n) = rows.getOrNull(position) ?: return rv
             val text = n.optString("text")
             val fav = n.optBoolean("fav")
-            val title = Notes.title(text).ifEmpty { "(빈 메모)" }
+            val title = Notes.attMark(n) + Notes.title(text).ifEmpty { "(빈 메모)" }
             rv.setTextViewText(R.id.ntitle, if (fav) "★ $title" else title)
             val body = if (n.optBoolean("folded")) "" else Notes.bodyOf(text).lines().filter { it.isNotBlank() }.joinToString("\n")
             rv.setTextViewText(R.id.nbody, body)

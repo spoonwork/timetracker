@@ -92,6 +92,12 @@ object Notes {
         }.start()
     }
 
+    /** PC에서 넣은 이미지·PDF가 있으면 표시 (그림은 PC에서만 보임) */
+    fun attMark(n: JSONObject): String {
+        val a = n.optJSONObject("att") ?: return ""
+        return if (a.optString("kind") == "pdf") "[PDF·PC에서 보기] " else "[이미지·PC에서 보기] "
+    }
+
     fun title(text: String): String = text.lineSequence().firstOrNull { it.isNotBlank() }?.trim() ?: ""
     fun bodyOf(text: String): String {
         val lines = text.lines()
@@ -223,7 +229,7 @@ class NotesActivity : Activity() {
         }
         val head = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         head.addView(TextView(this).apply {
-            this.text = Notes.title(text).ifEmpty { "(빈 메모)" }
+            this.text = Notes.attMark(n) + Notes.title(text).ifEmpty { "(빈 메모)" }
             textSize = 15f; setTextColor(main); setTypeface(typeface, Typeface.BOLD)
             maxLines = 2; ellipsize = TextUtils.TruncateAt.END
         }, LinearLayout.LayoutParams(0, -2, 1f))
