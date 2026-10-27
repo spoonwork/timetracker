@@ -87,7 +87,7 @@ class NoteWidgetService : RemoteViewsService() {
             val (id, n) = rows.getOrNull(position) ?: return rv
             val text = n.optString("text")
             val fav = n.optBoolean("fav")
-            val title = Notes.attMark(n) + Notes.title(text).ifEmpty { "(빈 메모)" }
+            val title = (if (NoteFiles.fid(n.optJSONObject("att")).isEmpty()) Notes.attMark(n) else "") + Notes.title(text).ifEmpty { "(빈 메모)" }
             rv.setTextViewText(R.id.ntitle, if (fav) "★ $title" else title)
             val body = if (n.optBoolean("folded")) "" else Notes.bodyOf(text).lines().filter { it.isNotBlank() }.joinToString("\n")
             rv.setTextViewText(R.id.nbody, body)
@@ -101,6 +101,15 @@ class NoteWidgetService : RemoteViewsService() {
                 rv.setViewVisibility(R.id.naccent, if (noColor) android.view.View.GONE else android.view.View.VISIBLE)
                 if (!noColor) rv.setInt(R.id.naccent, "setColorFilter", Notes.head(key))
             }
+            // PC에서 넣은 이미지·PDF 썸네일 (삼성 노트처럼 왼쪽)
+            val att = n.optJSONObject("att")
+            val th = if (NoteFiles.fid(att).isNotEmpty()) try {
+                NoteFiles.thumb(ctx, att, (44 * ctx.resources.displayMetrics.density).toInt())
+            } catch (_: Throwable) { null } else null
+            if (th != null) {
+                rv.setImageViewBitmap(R.id.nthumb, th)
+                rv.setViewVisibility(R.id.nthumb, android.view.View.VISIBLE)
+            } else rv.setViewVisibility(R.id.nthumb, android.view.View.GONE)
             rv.setOnClickFillInIntent(R.id.ncard, Intent().putExtra("id", id))
             return rv
         }

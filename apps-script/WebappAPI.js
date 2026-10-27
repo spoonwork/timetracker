@@ -49,6 +49,11 @@ function doGet(e) {
     setupAppDataSheet();
     const ss = openSS();
 
+    // ?mode=file&id=… → 스티커 이미지·PDF 받기
+    if (e && e.parameter && e.parameter.mode === 'file') {
+      return makeJsonResponse(fileGet(ss, e.parameter.id));
+    }
+
     // 작업캘린더 구조 확인용 (날짜·색만 반환)
     if (e && e.parameter && e.parameter.mode === 'workcal_shape') {
       return makeJsonResponse(workCalShape(e.parameter.gid));
@@ -118,6 +123,8 @@ function doPost(e) {
     const body = JSON.parse(e.postData.contents);
     if (!authOk(body.auth)) return authFail();
     if (body.ops) return makeJsonResponse(applyWidgetOps(ss, appSheet, body.ops));
+    if (body.action === 'file_put') return makeJsonResponse(filePut(ss, body.id, body.mime, body.data));
+    if (body.action === 'file_del') return makeJsonResponse(fileDel(ss, body.id));
     const key = body.key;
     const value = body.value;
 
@@ -731,4 +738,67 @@ function makeJsonResponse(obj) {
 function test() {
   const result = doGet({});
   Logger.log(result.getContent());
+}
+
+
+// =============== 스티커 이미지·PDF (시트 '파일'에 잘라서 저장) ===============
+// 한 칸 글자 수 제한(5만) 때문에 4만 자씩 잘라 여러 줄로: [id, 순번, mime, 조각]
+const FILE_SHEET = '파일';
+const FILE_CHUNK = 40000;
+
+function fileSheet(ss) {
+  let sh = ss.getSheetByName(FILE_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(FILE_SHEET);
+    sh.appendRow(['id', 'part', 'mime', 'data']);
+    try { sh.hideSheet(); } catch (e) {}
+  }
+  return sh;
+}
+
+function fileRows(sh, id) {
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  const ids = sh.getRange(2, 1, last - 1, 1).getValues();
+  const rows = [];
+  for (let i = 0; i < ids.length; i++) if (String(ids[i][0]) === String(id)) rows.push(i + 2);
+  return rows;
+}
+
+function fileDel(ss, id) {
+  if (!id) return { ok: false, error: 'no id' };
+  const sh = fileSheet(ss);
+  const rows = fileRows(sh, id);
+  for (let i = rows.length - 1; i >= 0; i--) sh.deleteRow(rows[i]);
+  return { ok: true, removed: rows.length };
+}
+
+function filePut(ss, id, mime, data) {
+  if (!id || !data) return { ok: false, error: 'no id/data' };
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    fileDel(ss, id);
+    const sh = fileSheet(ss);
+    const out = [];
+    for (let i = 0, n = 0; i < data.length; i += FILE_CHUNK, n++) {
+      out.push([String(id), n, mime || '', data.substring(i, i + FILE_CHUNK)]);
+    }
+    sh.getRange(sh.getLastRow() + 1, 1, out.length, 4).setNumberFormat('@').setValues(out);
+    return { ok: true, parts: out.length };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function fileGet(ss, id) {
+  if (!id) return { ok: false, error: 'no id' };
+  const sh = ss.getSheetByName(FILE_SHEET);
+  if (!sh) return { ok: false, error: 'none' };
+  const last = sh.getLastRow();
+  if (last < 2) return { ok: false, error: 'none' };
+  const vals = sh.getRange(2, 1, last - 1, 4).getValues().filter(r => String(r[0]) === String(id));
+  if (!vals.length) return { ok: false, error: 'none' };
+  vals.sort((a, b) => Number(a[1]) - Number(b[1]));
+  return { ok: true, mime: vals[0][2], data: vals.map(r => String(r[3])).join('') };
 }

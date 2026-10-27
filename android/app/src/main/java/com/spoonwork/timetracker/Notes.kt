@@ -95,6 +95,7 @@ object Notes {
     /** PC에서 넣은 이미지·PDF가 있으면 표시 (그림은 PC에서만 보임) */
     fun attMark(n: JSONObject): String {
         val a = n.optJSONObject("att") ?: return ""
+        if (a.optBoolean("up")) return ""
         return if (a.optString("kind") == "pdf") "[PDF·PC에서 보기] " else "[이미지·PC에서 보기] "
     }
 
@@ -252,6 +253,26 @@ class NotesActivity : Activity() {
                 show(Notes.cache(this@NotesActivity))
             }
         })
+        val att = n.optJSONObject("att")
+        if (NoteFiles.fid(att).isNotEmpty()) {
+            val iv = android.widget.ImageView(this).apply {
+                adjustViewBounds = true
+                scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+                maxHeight = dp(180)
+                clipToOutline = true
+                outlineProvider = object : android.view.ViewOutlineProvider() {
+                    override fun getOutline(v: View, o: android.graphics.Outline) {
+                        o.setRoundRect(0, 0, v.width, v.height, dp(6).toFloat())
+                    }
+                }
+            }
+            box.addView(iv, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+            val w = resources.displayMetrics.widthPixels / 2
+            Thread {
+                val b = NoteFiles.bitmap(applicationContext, att, w)
+                if (b != null) runOnUiThread { iv.setImageBitmap(b) }
+            }.start()
+        }
         box.addView(head)
         val body = Notes.bodyOf(text)
         if (!folded && body.isNotBlank()) {
@@ -399,7 +420,12 @@ class NoteEditActivity : Activity() {
         applyFs()
         styleTitle(edit.text)
         val sv = ScrollView(this).apply { isFillViewport = true }
-        sv.addView(edit, LinearLayout.LayoutParams(-1, -1))
+        val inner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val att = n?.optJSONObject("att")
+        if (NoteFiles.fid(att).isNotEmpty()) addAttView(inner, att!!)
+        edit.minHeight = resources.displayMetrics.heightPixels / 2
+        inner.addView(edit, LinearLayout.LayoutParams(-1, -2))
+        sv.addView(inner, LinearLayout.LayoutParams(-1, -1))
         root.addView(sv, LinearLayout.LayoutParams(-1, 0, 1f))
         // 작성 / 수정 날짜
         val fmt = java.text.SimpleDateFormat("yyyy.M.d (E) HH:mm", java.util.Locale.KOREAN)
@@ -427,6 +453,52 @@ class NoteEditActivity : Activity() {
     }
 
     /** 첫 줄 굵고 크게 */
+    /** PC에서 넣은 이미지·PDF 보기 (PDF는 ◀ ▶) */
+    private fun addAttView(parent: LinearLayout, att: JSONObject) {
+        val iv = android.widget.ImageView(this).apply {
+            adjustViewBounds = true
+            scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+        }
+        val msg = TextView(this).apply {
+            text = "그림 받는 중…"; textSize = 12f; setTextColor(Color.parseColor("#80000000"))
+            gravity = Gravity.CENTER; setPadding(0, dp(16), 0, dp(16))
+        }
+        parent.addView(msg)
+        parent.addView(iv, LinearLayout.LayoutParams(-1, -2).apply { setMargins(dp(14), dp(6), dp(14), dp(4)) })
+        val pdf = NoteFiles.isPdf(att)
+        var page = att.optInt("page", 0)
+        var total = att.optInt("pages", 1)
+        val nav = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; visibility = View.GONE }
+        val lab = TextView(this).apply { textSize = 13f; setTextColor(Color.parseColor("#5A4D00")); setPadding(dp(18), 0, dp(18), 0) }
+        val w = resources.displayMetrics.widthPixels - dp(28)
+        fun load() {
+            lab.text = "${page + 1} / $total"
+            Thread {
+                val f = NoteFiles.ensure(applicationContext, att)
+                if (pdf && f != null) total = NoteFiles.pageCount(f).coerceAtLeast(1)
+                val b = NoteFiles.bitmap(applicationContext, att, w, page)
+                runOnUiThread {
+                    if (b != null) { iv.setImageBitmap(b); msg.visibility = View.GONE }
+                    else msg.text = "그림을 못 받았어요 (인터넷 확인)"
+                    lab.text = "${page + 1} / $total"
+                    if (pdf) nav.visibility = View.VISIBLE
+                }
+            }.start()
+        }
+        fun navBtn(t: String, step: Int) = TextView(this).apply {
+            text = t; textSize = 13f; setTextColor(Color.parseColor("#5A4D00"))
+            setPadding(dp(16), dp(6), dp(16), dp(6))
+            background = GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(Notes.head(color)) }
+            setOnClickListener {
+                val np = (page + step).coerceIn(0, total - 1)
+                if (np != page) { page = np; load() }
+            }
+        }
+        nav.addView(navBtn("◀", -1)); nav.addView(lab); nav.addView(navBtn("▶", 1))
+        parent.addView(nav, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(4), 0, dp(6)) })
+        load()
+    }
+
     private fun styleTitle(s: Editable?) {
         s ?: return
         s.getSpans(0, s.length, StyleSpan::class.java).filter { it !is UBold && it !is UItalic }.forEach { s.removeSpan(it) }
