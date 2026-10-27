@@ -2864,17 +2864,34 @@ function showCellInfo(text) {
   try {
     const q = new URLSearchParams(location.search).get('auth');
     if (q) {   // 주소창에 ?auth=키 로 한 번 넣으면 저장
-      localStorage.setItem('tt-auth', q);
+      localStorage.setItem('tt-auth', q.replace(/\s+/g, ''));
       history.replaceState(null, '', location.pathname + location.search.replace(/[?&]auth=[^&]*/, '').replace(/^&/, '?'));
     }
   } catch (e) {}
   const orig = window.fetch.bind(window);
   let asking = false;
+  // 비밀 키 넣기 창 (지금 저장된 키를 보여줘서 잘못 붙여넣었는지 볼 수 있게)
+  window.askAuthKey = function (thenSync) {
+    if (asking) return false;
+    asking = true;
+    let cur = '';
+    try { cur = localStorage.getItem('tt-auth') || ''; } catch (e) {}
+    const k = window.prompt(cur ? '비밀 키가 맞지 않아요. 지금 저장된 키를 고쳐주세요 (앞뒤 빈칸·줄바꿈 없이)' :
+      '비밀 키를 넣어주세요 (한 번만 넣으면 이 기기에 기억돼요)', cur);
+    asking = false;
+    if (k && k.trim()) {
+      try { localStorage.setItem('tt-auth', k.replace(/\s+/g, '')); } catch (e) {}
+      if (thenSync && typeof syncFromSheets === 'function') syncFromSheets(true);
+      return true;
+    }
+    return false;
+  };
   window.fetch = async function (url, opts) {
+    const origOpts = opts;
     const u = String(url || '');
     if (!u.startsWith(CONFIG.APPS_SCRIPT_URL)) return orig(url, opts);
     let key = '';
-    try { key = localStorage.getItem('tt-auth') || ''; } catch (e) {}
+    try { key = (localStorage.getItem('tt-auth') || '').replace(/\s+/g, ''); } catch (e) {}
     opts = Object.assign({}, opts || {});
     if (key) {
       if ((opts.method || 'GET').toUpperCase() === 'POST' && typeof opts.body === 'string') {
@@ -2887,13 +2904,7 @@ function showCellInfo(text) {
     try {
       const j = await res.clone().json();
       if (j && j.error === 'auth' && !asking) {
-        asking = true;
-        const k = window.prompt('비밀 키를 넣어주세요 (한 번만 넣으면 이 기기에 기억돼요)', '');
-        asking = false;
-        if (k && k.trim()) {
-          localStorage.setItem('tt-auth', k.trim());
-          return window.fetch(u, arguments[1]);
-        }
+        if (window.askAuthKey(false)) return window.fetch(u, origOpts);
       }
     } catch (e) {}
     return res;
@@ -3373,6 +3384,12 @@ async function syncFromSheets(manual = false) {
     console.error('Sync error:', err);
     statusEl.textContent = '동기화 실패: ' + err.message;
     statusEl.classList.add('error');
+    // 비밀 키 문제면 바로 다시 넣을 수 있게
+    if (/auth|비밀 키/.test(String(err.message))) {
+      statusEl.innerHTML = '비밀 키가 맞지 않아요 · <a href="#" id="re-key" style="color:inherit;text-decoration:underline">다시 넣기</a>';
+      const a = document.getElementById('re-key');
+      if (a) a.onclick = (ev) => { ev.preventDefault(); window.askAuthKey && window.askAuthKey(true); };
+    }
   } finally {
     isSyncing = false;
     if (syncBtn) syncBtn.style.opacity = '1';
