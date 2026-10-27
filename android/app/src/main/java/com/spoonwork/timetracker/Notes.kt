@@ -488,7 +488,7 @@ class NoteEditActivity : Activity() {
         fun navBtn(t: String, step: Int) = TextView(this).apply {
             text = t; textSize = 13f; setTextColor(Color.parseColor("#5A4D00"))
             setPadding(dp(16), dp(6), dp(16), dp(6))
-            background = GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(Notes.head(color)) }
+            background = GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(Notes.head(this@NoteEditActivity.color)) }
             setOnClickListener {
                 val np = (page + step).coerceIn(0, total - 1)
                 if (np != page) { page = np; load() }
