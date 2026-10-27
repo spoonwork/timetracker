@@ -288,7 +288,16 @@ object Art {
                 var color = it.color
                 if (!inMonth(week[a]) && !inMonth(week[b])) color = Color.argb(110, Color.red(color), Color.green(color), Color.blue(color))
                 val ts = 9f * u * fs
-                if (it.time.isNotEmpty() && a == b && !it.sheet) barItem(c, p, rect, color, it.title, ts, u, main)
+                if (it.end < todayDs) {
+                    // 지난 날: 색칠 없이 빨간 글자 + 줄 긋기
+                    p.color = RED
+                    if (!inMonth(week[a]) && !inMonth(week[b])) p.alpha = 110
+                    p.textSize = ts; p.textAlign = Paint.Align.LEFT; p.typeface = Typeface.DEFAULT
+                    p.isStrikeThruText = true
+                    val tx = rect.left + 1.5f * u
+                    c.drawText(fit(p, it.title, rect.right - tx), tx, rect.centerY() + ts * 0.36f, p)
+                    p.isStrikeThruText = false; p.alpha = 255
+                } else if (it.time.isNotEmpty() && a == b && !it.sheet) barItem(c, p, rect, color, it.title, ts, u, main)
                 else pill(c, p, rect, color, it.title, ts, 2.5f * u, it.done)
             }
             for (col in 0..6) {
