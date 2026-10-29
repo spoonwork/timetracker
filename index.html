@@ -520,6 +520,10 @@
 
   #pds-grid { position: relative; }
   .pds-plan.has-plan { background: #F8F5EC; }
+  .plan-menu { position: fixed; z-index: 9999; display: none; background: var(--card, #fff); border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); padding: 5px; font-size: 13px; }
+  .plan-menu-item { padding: 8px 14px; border-radius: 8px; cursor: pointer; white-space: nowrap; color: var(--text, #1F2937); }
+  .plan-menu-item:hover { background: rgba(0,0,0,0.05); }
   .plan-ok { font-size: 10.5px; color: #2BB673; font-weight: 600; white-space: nowrap; padding-right: 8px; position: relative; z-index: 6; }
   .pds-fold {
     display: grid; grid-template-columns: 1fr 68px 1fr; align-items: center;
@@ -739,6 +743,7 @@
 
 <script src="focusflow-history.js"></script>
 <script>
+var PLAN_WORK_MIN = {};   // 시간별 작업 분 (✓ 했음 계산용 · renderDaily가 채움)
 const CONFIG = {
   PIN: '0000',
   SPREADSHEET_ID: '1a6ffXAJLFuaR7emkrBKjMI-yW3_QxhP7lAsPIrfEiVA',
@@ -1214,7 +1219,9 @@ function renderDaily() {
       }
       html += `<div class="pds-fold open" data-fold="0"><span class="f-plan"></span><span class="f-time"></span><span class="f-do">💤 수면 ${rangeTxt} <em>▴ 접기</em></span></div>`;
     }
-    const didPlan = planText.trim() && workMinInHour(h) >= 30;
+    // ✓ 했음: '오늘 할 일'에 올린 계획만 (가벼운 일상 기록은 X) · 체크했거나 그 시간에 작업 30분 이상
+    PLAN_WORK_MIN[h] = workMinInHour(h);
+    const didPlan = planDone(ds, h);
 
     html += `<div class="pds-row" data-h="${h}">`;
     const isChecked = (state.hourChecks[ds] || {})[h] || false;
@@ -1228,7 +1235,7 @@ function renderDaily() {
       html += `<input type="text" data-hour="${h}" value="${escapeAttr(planText)}" placeholder="" style="text-align:${align};" />`;
     }
     html += `<div class="plan-todo-overlay" data-hour="${h}"></div>`;
-    if (didPlan) html += `<span class="plan-ok" title="이 시간에 작업 기록이 있어요">✓ 했음</span>`;
+    if (didPlan) html += `<span class="plan-ok" title="오늘 할 일에 올린 계획 · 체크했거나 작업 기록 30분 이상">✓ 했음</span>`;
     html += `</div>`;
     
     const markerData = markers[h];
@@ -1427,6 +1434,7 @@ function bindPlanInputs() {
       saveToLocal();
       renderTodos();
       cb.classList.toggle('checked', nowChecked);
+      refreshPlanOk(ds, h);
     };
   });
 
@@ -1439,23 +1447,22 @@ function bindPlanInputs() {
       const fakeEl = planDiv.querySelector('[data-hour]');
       if (!fakeEl) return;
       const h = parseInt(fakeEl.dataset.hour);
+      togglePlanTodo(ds, h, planDiv);
+    });
+    // 우클릭(폰은 길게 누르기) → '오늘 할 일에 올리기 / 빼기' (📋 버튼 안 눌러도)
+    planDiv.addEventListener('contextmenu', (e) => {
+      const el = planDiv.querySelector('[data-hour]');
+      if (!el) return;
+      const ds = fmtDate(state.date);
+      const h = parseInt(el.dataset.hour);
       const planText = (state.hourPlans[ds] || {})[h] || '';
-      if (!planText.trim()) return;
-      pushHistory();
-      // 이미 등록된 항목이면 제거, 없으면 추가
-      const planKey = `__plan_${h}`;
-      const todos = state.todos[ds] || [];
-      const existingIdx = todos.findIndex(t => t.planKey === planKey);
-      if (existingIdx >= 0) {
-        state.todos[ds].splice(existingIdx, 1);
-        planDiv.style.background = 'rgba(200,100,100,0.2)';
-      } else {
-        syncPlanToTodo(ds, h, planText, false);
-        planDiv.style.background = 'rgba(100,200,100,0.25)';
-      }
-      saveToLocal();
-      renderTodos();
-      setTimeout(() => { planDiv.style.background = ''; }, 500);
+      if (!planText.trim()) return;          // 빈 칸은 원래 메뉴 그대로
+      e.preventDefault();
+      const on = (state.todos[ds] || []).some(t => t.planKey === `__plan_${h}`);
+      showPlanMenu(e.clientX, e.clientY, [
+        [on ? '오늘 할 일에서 빼기' : '📋 오늘 할 일에 올리기', () => togglePlanTodo(ds, h, planDiv)],
+        ['🗑 글자 지우기', () => clearPlan(ds, h)],
+      ]);
     });
   });
 
@@ -2111,6 +2118,85 @@ function calcSleepWindow(date) {
 
 // PLAN 텍스트 → 사이드바 할일 연동
 // 이미 같은 planKey로 등록된 항목이 있으면 텍스트만 업데이트, done은 건드리지 않음
+// ✓ 했음: '오늘 할 일'에 올린 계획만 (가벼운 일상 기록은 X) · 체크했거나 그 시간에 작업 30분 이상
+function planDone(ds, h) {
+  const planText = (state.hourPlans[ds] || {})[h] || '';
+  const planTodo = (state.todos[ds] || []).find(t => t.planKey === `__plan_${h}`);
+  return !!(planText.trim() && planTodo && (planTodo.done || (state.hourChecks[ds] || {})[h] || (PLAN_WORK_MIN[h] || 0) >= 30));
+}
+function refreshPlanOk(ds, h) {
+  const row = document.querySelector(`.pds-row[data-h="${h}"] .pds-plan`);
+  if (!row) return;
+  const cur = row.querySelector('.plan-ok');
+  const want = planDone(ds, h);
+  if (want && !cur) {
+    const sp = document.createElement('span');
+    sp.className = 'plan-ok';
+    sp.title = '오늘 할 일에 올린 계획 · 체크했거나 작업 기록 30분 이상';
+    sp.textContent = '✓ 했음';
+    row.appendChild(sp);
+  } else if (!want && cur) cur.remove();
+}
+
+// 계획 한 칸을 '오늘 할 일'에 올리기 / 빼기 (📋 모드 클릭 · 우클릭 메뉴 공용)
+function togglePlanTodo(ds, h, planDiv) {
+  const planText = (state.hourPlans[ds] || {})[h] || '';
+  if (!planText.trim()) return;
+  pushHistory();
+  const planKey = `__plan_${h}`;
+  const todos = state.todos[ds] || [];
+  const existingIdx = todos.findIndex(t => t.planKey === planKey);
+  if (existingIdx >= 0) {
+    state.todos[ds].splice(existingIdx, 1);
+    if (planDiv) planDiv.style.background = 'rgba(200,100,100,0.2)';
+  } else {
+    syncPlanToTodo(ds, h, planText, false);
+    if (planDiv) planDiv.style.background = 'rgba(100,200,100,0.25)';
+  }
+  saveToLocal();
+  renderTodos();
+  refreshPlanOk(ds, h);
+  if (planDiv) setTimeout(() => { planDiv.style.background = ''; }, 500);
+}
+
+// 계획 칸 글자 지우기 (오늘 할 일에 올린 것 · 체크도 같이 정리 · 되돌리기 가능)
+function clearPlan(ds, h) {
+  pushHistory();
+  if (state.hourPlans[ds]) delete state.hourPlans[ds][h];
+  if (state.hourChecks[ds]) delete state.hourChecks[ds][h];
+  if (state.todos[ds]) state.todos[ds] = state.todos[ds].filter(t => t.planKey !== `__plan_${h}`);
+  saveToLocal();
+  renderTodos();
+  renderDaily();
+}
+
+function showPlanMenu(x, y, items) {
+  let m = document.getElementById('plan-menu');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'plan-menu';
+    m.className = 'plan-menu';
+    document.body.appendChild(m);
+    const close = () => { m.style.display = 'none'; };
+    document.addEventListener('click', close);
+    document.addEventListener('scroll', close, true);
+    window.addEventListener('blur', close);
+    document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') close(); });
+  }
+  m.innerHTML = '';
+  items.forEach(([label, fn]) => {
+    const it = document.createElement('div');
+    it.className = 'plan-menu-item';
+    it.textContent = label;
+    it.onclick = (ev) => { ev.stopPropagation(); m.style.display = 'none'; fn(); };
+    m.appendChild(it);
+  });
+  m.style.display = 'block';
+  const w = m.offsetWidth, hh = m.offsetHeight;
+  m.style.left = Math.min(x, window.innerWidth - w - 8) + 'px';
+  m.style.top = Math.min(y, window.innerHeight - hh - 8) + 'px';
+}
+
 function syncPlanToTodo(ds, h, text, done) {
   if (!text.trim()) return;
   if (!state.todos[ds]) state.todos[ds] = [];
@@ -2192,6 +2278,7 @@ function renderTodos() {
         // DOM 체크박스 즉시 업데이트
         const planCb = document.querySelector(`.plan-cb[data-hour="${h}"]`);
         if (planCb) planCb.classList.toggle('checked', list[i].done);
+        refreshPlanOk(ds, h);
       }
       saveToLocal();
       renderTodos();
