@@ -1146,7 +1146,7 @@ function render() {
       `${weekStart.getMonth()+1}월 ${getWeekOfMonth(weekStart)}째 주 <span class="saju-info">${saju.year}年 ${saju.month}月</span>`;
     renderWeekly();
   } else {
-    const saju = getSajuText(d);
+    const saju = getSajuText(new Date(d.getFullYear(), d.getMonth(), 15));   // 달 이름은 그 달 가운데(15일) 기준
     document.getElementById('header-label').textContent = `${d.getFullYear()}`;
     document.getElementById('header-title').innerHTML = 
       `${String(d.getMonth()+1).padStart(2,'0')}월 <span class="saju-info">${saju.year}年 ${saju.month}月</span>`;
@@ -2812,29 +2812,25 @@ function getYearGanji(date) {
 }
 
 function getMonthGanji(date) {
-  const yearGanji = getYearGanji(date);
-  const yearGanIdx = yearGanji.yearGanIdx;
+  // 절기(입춘·경칩…대설·소한) 기준 월주 · 12월 대설 이후 = 子월, 1월 소한 이후 = 丑월
+  const yearGanIdx = getYearGanji(date).yearGanIdx;
   const m = date.getMonth() + 1;
   const d = date.getDate();
-  
-  let termIdx = 11;
-  for (let i = 0; i < 12; i++) {
-    const [tm, td] = SOLAR_TERMS[i];
-    const nextI = (i + 1) % 12;
-    const [ntm, ntd] = SOLAR_TERMS[nextI];
-    if (i === 11) {
-      if ((m === 1 && d >= 6) || (m === 2 && d < 4)) { termIdx = 11; break; }
-    } else {
-      if (m > tm || (m === tm && d >= td)) {
-        if (m < ntm || (m === ntm && d < ntd)) { termIdx = i; break; }
-      }
+  let termIdx;
+  if ((m === 1 && d >= SOLAR_TERMS[11][1]) || (m === 2 && d < SOLAR_TERMS[0][1])) {
+    termIdx = 11;                                   // 丑월 (소한 ~ 입춘 전)
+  } else if (m === 1) {
+    termIdx = 10;                                   // 子월 (1월 소한 전)
+  } else {
+    termIdx = 0;
+    for (let i = 10; i >= 0; i--) {
+      const [tm, td] = SOLAR_TERMS[i];
+      if (m > tm || (m === tm && d >= td)) { termIdx = i; break; }
     }
   }
-  
   const monthJijiIdx = MONTH_JIJI_IDX[termIdx];
   const firstMonthGanIdx = (yearGanIdx * 2 + 2) % 10;
   const monthGanIdx = (firstMonthGanIdx + termIdx) % 10;
-  
   return {
     gan: CHEONGAN[monthGanIdx],
     ji: JIJI[monthJijiIdx],
